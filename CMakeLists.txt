@@ -9,6 +9,7 @@ INCLUDE_DIRECTORIES(include)
 # find package.
 FIND_PACKAGE(OpenCV 4)
 
+
 # add the executable.
 ADD_EXECUTABLE(rane_software 
     core/rane_software.cpp
@@ -16,4 +17,5 @@ ADD_EXECUTABLE(rane_software
     include/fonction.h)
 
 TARGET_LINK_LIBRARIES(rane_software
-    ${OpenCV_LIBS})
+    ${OpenCV_LIBS}
+    /usr/local/lib/libserial.so)
