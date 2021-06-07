@@ -1,4 +1,5 @@
-#include<iostream>
+#include <iostream>
+#include "../include/fonction.h"
 
 int main()
 {

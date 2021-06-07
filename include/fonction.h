@@ -1,0 +1,1 @@
+bool test(bool is_cool);
