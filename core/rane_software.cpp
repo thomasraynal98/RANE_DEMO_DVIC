@@ -239,12 +239,6 @@ void thread_ANALYSER(int& state_A_controler, int& state_B_controler)
 }
 
 int main(){
-    high_resolution_clock::time_point t1 = high_resolution_clock::now();
-    usleep(10000);
-    high_resolution_clock::time_point t2 = high_resolution_clock::now();
-    duration<double, std::milli> time_span = t2 - t1;
-    std::cout << (int)time_span.count() << "\n";
-
     LibSerial::SerialPort* serial_port_controle_A;
     LibSerial::SerialPort* serial_port_sensor_B;
 
@@ -256,6 +250,8 @@ int main(){
     
     serial_port_controle_A = get_available_port(1, controler_A_pong);
     serial_port_sensor_B   = get_available_port(1, controler_B_pong);
+
+    usleep(20000);
 
     auto thread1  = std::thread(&thread_LISTENER, std::ref(serial_port_controle_A), std::ref(state_A_controler), controler_A_pong); 
 	auto thread2  = std::thread(&thread_SPEAKER , std::ref(serial_port_controle_A)); 
