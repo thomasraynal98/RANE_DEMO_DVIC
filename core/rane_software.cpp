@@ -49,15 +49,17 @@ bool check_if_ping_pong_work(std::string ping, std::string pong)
    return ping.compare(pong) == 0;
 }
 
-LibSerial::SerialPort* get_available_port(const int debug_mode, const std::string& message)
+LibSerial::SerialPort* get_available_port(const int debug_mode, const std::string& message, bool wait_option)
 {
     /*
         DESCRIPTOR      : this function will found the available ports witch 
             pong the good message. 
         INPUT           :
+        * debug_mode        > you can see more information if debug_mode = 1.
         * message           > message pong to get.
+        * wait_option       > allow to wait 2000ms between open and write/read.
         OUTPUT          :
-        * 
+        * _                 > pointor to object SerialPort.
     */
     
     // Check all ttyACMX.
@@ -67,7 +69,7 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
         std::string name_port = "/dev/ttyACM" + std::__cxx11::to_string(i);
         bool is_openable = true;
 
-        if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
+        if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
 
         try{ serial_port->Open(name_port);}
         catch (LibSerial::OpenFailed ex)
@@ -83,6 +85,7 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
 
         if(is_openable)
         {
+            if(wait_option){ usleep(2000000);}
             if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
             if(debug_mode==1) {std::cout << "message:" << message << "\n";}
             try{ serial_port->Write(message);}
@@ -93,7 +96,7 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
             if(debug_mode==1) {std::cout << "reponse:" << reponse;}
 
             if(check_if_ping_pong_work(message, reponse))
-            {
+            {   
                 return serial_port;
             }
             else{serial_port->Close();}
@@ -109,7 +112,9 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
 
         if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
 
-        try{ serial_port->Open(name_port);}
+        try{ 
+            serial_port->Open(name_port);
+        }
         catch (LibSerial::OpenFailed ex)
         {
             if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
@@ -123,6 +128,7 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
 
         if(is_openable)
         {
+            if(wait_option){ usleep(2000000);}
             if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
             if(debug_mode==1) {std::cout << "message:" << message << "\n";}
             try{ serial_port->Write(message);}
@@ -139,30 +145,75 @@ LibSerial::SerialPort* get_available_port(const int debug_mode, const std::strin
             else{serial_port->Close();}
         }
     }
+
+    // If we found nothing
+    return NULL;
 }
 
-void thread_SPEAKER(LibSerial::SerialPort* serial_port)
-{
+void thread_SPEAKER(LibSerial::SerialPort** serial_port, int& state, std::string pong_message)
+{   
+    /*
+        DESCRIPTION: this thread will send ping message all 1000ms,
+            it will also manage the deconnection and reconnection
+            of microcontroler.
+    */
+    bool is_lost = false;
+    high_resolution_clock::time_point timer_start, current_timer;
+    duration<double, std::milli> time_span;
+    int time_since_lost = 1000;
+
     while(true)
     {   
-        // Listen ping.
+        // send ping all 1000ms.
         usleep(1000000);
         std::string message = "1/X";
-        if(serial_port->IsOpen())
+
+        if(*serial_port != NULL)
         {
-            try{serial_port->Write(message);}
-            catch(std::runtime_error ex){;}
+            try{
+                (**serial_port).Write(message);
+                is_lost = false;
+            }
+            catch(LibSerial::NotOpen ex){std::cout << "notopen\n";}
+            catch(std::runtime_error ex)
+            {
+                if(!is_lost)
+                {
+                    // we stard timer.
+                    timer_start = high_resolution_clock::now();
+                    is_lost = true;
+                }
+
+                // if lost for more than 1000ms we close it.
+                current_timer = high_resolution_clock::now();
+                time_span = current_timer - timer_start;
+                if((int)time_span.count() > time_since_lost)
+                {
+                    // close connection.
+                    (**serial_port).Close();
+                    *serial_port = NULL;
+                }
+            }
+        }
+        else{
+            // we are disconnect.
+            state = 2;
+
+            // we try to found it.
+            *serial_port = get_available_port(0, pong_message, true);
         }
     }
 }
 
-void thread_LISTENER(LibSerial::SerialPort* serial_port, int& state, std::string message_pong)
+void thread_LISTENER(LibSerial::SerialPort** serial_port, int& state, std::string message_pong)
 {
     //last_ping
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    high_resolution_clock::time_point t2;
+    duration<double, std::milli> time_span;
 
     //max time without listen
-    int time_since_lost = 1500;                                  // in ms.
+    int time_since_lost = 2000;                                  // in ms.
 
     while(true)
     {   
@@ -170,34 +221,37 @@ void thread_LISTENER(LibSerial::SerialPort* serial_port, int& state, std::string
         char stop = '\n';   
         const unsigned int msTimeout = 100;                      // wait 100ms before pass to next.
 
-        if(serial_port->IsOpen())
+        if(*serial_port != NULL)
         {
-            try{serial_port->ReadLine(reponse, stop, msTimeout);}
-            catch(std::runtime_error ex){;}
+            if((**serial_port).IsOpen())
+            {
+                try{(**serial_port).ReadLine(reponse, stop, msTimeout);}
+                catch(std::runtime_error ex){;}
 
-            if(reponse.size() > 0)
-            {
-                std::cout << "reponse:" << reponse << std::endl;
-            }
-            if(check_if_ping_pong_work(message_pong, reponse))
-            {
-                t1 = high_resolution_clock::now();
-            }
+                if(reponse.size() > 0)
+                {
+                    std::cout << "reponse:" << reponse << std::endl;
+                }
+                if(check_if_ping_pong_work(message_pong, reponse))
+                {
+                    t1 = high_resolution_clock::now();
+                }
 
-            // Comparator.
-            high_resolution_clock::time_point t2 = high_resolution_clock::now();
-            duration<double, std::milli> time_span = t2 - t1;
-            if((int)time_span.count() > time_since_lost)
-            {
-                state = 2;
-            }
-            else{
-                state = 1;
+                // Comparator.
+                t2 = high_resolution_clock::now();
+                time_span = t2 - t1;
+                if((int)time_span.count() > time_since_lost)
+                {
+                    state = 3;
+                }
+                else{
+                    state = 1;
+                }
             }
         }
         else{
-            state = 2;
-            serial_port = get_available_port(0, message_pong);
+            // to evoid speed loop, wait 200ms.
+            usleep(200000);
         }
     }
 }
@@ -239,24 +293,29 @@ void thread_ANALYSER(int& state_A_controler, int& state_B_controler)
 }
 
 int main(){
-    LibSerial::SerialPort* serial_port_controle_A;
-    LibSerial::SerialPort* serial_port_sensor_B;
 
-    int state_A_controler = 0; // 0=init, 1=online, 2=offline.
-    int state_B_controler = 0; // 0=init, 1=online, 2=offline.
+    LibSerial::SerialPort** __serial_port_controle_A;
+    LibSerial::SerialPort* _serial_port_controle_A;
+    __serial_port_controle_A = &_serial_port_controle_A;
+
+    LibSerial::SerialPort** __serial_port_sensor_B;
+    LibSerial::SerialPort* _serial_port_sensor_B;
+    __serial_port_sensor_B = &_serial_port_sensor_B;
+
+
+    int state_A_controler = 0; // 0=init, 1=connect, 2=disconnect, 3=mute.
+    int state_B_controler = 0; // 0=init, 1=connect, 2=disconnect, 3=mute.
 
     std::string controler_A_pong= "1/A";
     std::string controler_B_pong= "1/B";
     
-    serial_port_controle_A = get_available_port(1, controler_A_pong);
-    serial_port_sensor_B   = get_available_port(1, controler_B_pong);
+    *__serial_port_controle_A = get_available_port(0, controler_A_pong, false);
+    *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, false);
 
-    usleep(20000);
-
-    auto thread1  = std::thread(&thread_LISTENER, std::ref(serial_port_controle_A), std::ref(state_A_controler), controler_A_pong); 
-	auto thread2  = std::thread(&thread_SPEAKER , std::ref(serial_port_controle_A)); 
-    auto thread1B = std::thread(&thread_LISTENER, std::ref(serial_port_sensor_B)  , std::ref(state_B_controler), controler_B_pong); 
-	auto thread2B = std::thread(&thread_SPEAKER , std::ref(serial_port_sensor_B)); 
+    auto thread1  = std::thread(&thread_LISTENER, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong); 
+	auto thread2  = std::thread(&thread_SPEAKER , __serial_port_controle_A, controler_A_pong); 
+    auto thread1B = std::thread(&thread_LISTENER, __serial_port_sensor_B  , std::ref(state_B_controler), controler_B_pong); 
+	auto thread2B = std::thread(&thread_SPEAKER , __serial_port_sensor_B  , controler_B_pong); 
     auto thread3  = std::thread(&thread_ANALYSER, std::ref(state_A_controler)     , std::ref(state_B_controler));
 
 	thread1.join();
@@ -264,7 +323,6 @@ int main(){
     thread1B.join();
     thread2B.join();
     thread3.join();
-    std::cout << "repere3\n";
 
     return 0;
 }
