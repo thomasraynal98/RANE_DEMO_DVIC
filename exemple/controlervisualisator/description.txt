@@ -1,0 +1,12 @@
+Lancer la démonstration de ce code.
+
+1. Avoir deux arduino uno.
+2. Relier le port RESET au port GND avec une capacitor de 10uf des arduinos.
+3. Téléverser le code "code_arduino.cpp" avec la ligne 1 <String id_microcontroler = "A";>" dans l'arduino A.
+4. Téléverser le code "code_arduino.cpp" avec la ligne 1 <String id_microcontroler = "B";>" dans l'arduino B.
+5. Mettre le code "controlervisual.cpp" dans "core/rane_software.cpp".
+6. Aller dans dossier "/build" et lancer la commande "cmake .. && make".
+7. Connecté arduino à votre ordinateur et lancer la commande "./rane_software".
+8. Vous pouvez debrancher, rebrancher et reset pour observer les changements.
+
+TIPS: l'étape 2 permet de desactiver le reboot automatique de l'arduino uno en cas d'ouverture de port.
