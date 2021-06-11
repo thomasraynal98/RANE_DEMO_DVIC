@@ -67,6 +67,9 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp",
-        "bit": "cpp"
+        "bit": "cpp",
+        "string.h": "c",
+        "serialport.h": "c",
+        "serialstream.h": "c"
     }
 }
