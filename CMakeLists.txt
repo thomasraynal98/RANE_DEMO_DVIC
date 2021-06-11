@@ -17,9 +17,9 @@ FIND_PACKAGE(OpenCV 4)
 ADD_EXECUTABLE(rane_software 
     core/rane_software.cpp
     src/fonction.cpp
-    src/robot.cpp
+    src/robot_system.cpp
     include/fonction.h
-    include/robot.h)
+    include/robot_system.h)
 
 TARGET_LINK_LIBRARIES(rane_software
     ${OpenCV_LIBS}
