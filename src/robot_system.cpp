@@ -12,8 +12,8 @@ Robot_system::Robot_system(std::string val_id)
 {   
     // initialisation process.
     robot_id              = val_id;
-    thread_1_localisation = std::thread(&thread_LOCALISATION);
-    thread_2_commande     = std::thread(&thread_COMMANDE);
+    thread_1_localisation = std::thread(&Robot_system::thread_LOCALISATION, this);
+    thread_2_commande     = std::thread(&Robot_system::thread_COMMANDE, this);
 
     thread_1_localisation.join();
     thread_2_commande.join();
