@@ -246,7 +246,7 @@ void thread_LISTENER(LibSerial::SerialPort** serial_port, int& state, std::strin
     }
 }
 
-using namespace cv;
+
 void thread_ANALYSER(int& state_A_controler, int& state_B_controler)
 {   
     // INIT WINDOWS.
