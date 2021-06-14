@@ -8,3 +8,11 @@ https://blog.mbedded.ninja/programming/operating-systems/linux/linux-serial-port
 http://libserial.sourceforge.net/doxygen/class_serial_port.html#a6d063c5984b774bd09b7df95192f1af0
 
 https://libserial.readthedocs.io/en/latest/tutorial.html
+
+## TODO 14 JUIN
+* redesign thread speaker and thread listener for object class usage.
+* remove line 99 & 100.
+* integrate all thread and complete initialisation.
+* create the debug analyst thread opencv interface.
+
+## TODO 15 JUIN - 18 JUIN
