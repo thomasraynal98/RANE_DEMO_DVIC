@@ -14,5 +14,6 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [BUG]       : Fix bug 2 ports deconnexion.
 * [IMPROVE]   : Improve thread sleeping to get a precise frequence.
 * [REFLEXION] : Define thread cadence.
-* [ADD]       : Add all variable (voltage, etc...)
+* [ADD]       : Add all variable (voltage, etc...).
 * [HARDWARE]  : Check how can i get the D455.
+* [BUG]       : thread pass to stop when port is disconnect.
