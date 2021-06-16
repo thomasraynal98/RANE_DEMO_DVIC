@@ -22,13 +22,11 @@ class Robot_system
         std::string robot_id;
         double battery_voltage;
         double robot_speed;
-        double cpu_heat;
-        double cpu_load;
-        double fan_power;
+        std::string robot_general_state;
 
         // VARIABLE FICHIER.
-        std::string path_to_cpu_heat = "/sys/class/thermal/thermal_zone1/temp";
-        std::string path_to_cpu_load = "/proc/loadavg";
+        std::string path_to_cpu_heat  = "/sys/class/thermal/thermal_zone1/temp";
+        std::string path_to_cpu_load  = "/proc/loadavg";
         std::string path_to_fan_power = "/";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
@@ -44,6 +42,9 @@ class Robot_system
         // VARIABLE INTERNE SENSOR.
         int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
         int state_sensor_fan = 0;
+        double cpu_heat;
+        double cpu_load;
+        double fan_power;
 
         // VARIABLE THREAD.
         std::thread thread_1_localisation;
@@ -105,5 +106,20 @@ class Robot_system
         void thread_ANALYSER(int frequency);
 
 };
- 
+
+class Robot_state{
+    public:
+        // ALL STATE.
+        Robot_state();
+        std::string const initialisation = "initialisation";
+        std::string const waiting        = "waiting";
+        std::string const manual         = "manual";
+        std::string const autonomous_nav = "autonomous_nav";
+        std::string const follow         = "follow";
+        std::string const home           = "home";
+        std::string const compute_nav    = "compute_nav";
+        std::string const cleaning       = "cleaning";
+        std::string const patrolling     = "patrolling";
+        std::string const reset          = "reset";
+};
 #endif

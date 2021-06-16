@@ -18,11 +18,12 @@
 Robot_system::Robot_system(std::string val_id)
 {   
     // initialisation process.
-    robot_id      = val_id;
-    robot_speed   = -1;
-    cpu_heat      = -1;
-    cpu_load      = -1;
-    fan_power     = -1;
+    robot_general_state       = Robot_state().initialisation;
+    robot_id                  = val_id;
+    robot_speed               = -1;
+    cpu_heat                  = -1;
+    cpu_load                  = -1;
+    fan_power                 = -1;
 
     // initialisation microcontroler.
     LibSerial::SerialPort* _serial_port_controle_A;
@@ -33,15 +34,15 @@ Robot_system::Robot_system(std::string val_id)
     *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
 
     // initialisation all thread.
-    thread_1_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_2_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_3_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_4_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_5_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_6_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_7_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_8_last_hz_update = std::chrono::high_resolution_clock::now();
-    thread_9_last_hz_update = std::chrono::high_resolution_clock::now();
+    thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_2_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_3_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_4_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_5_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_6_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_7_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
@@ -62,6 +63,11 @@ Robot_system::Robot_system(std::string val_id)
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
+}
+
+Robot_state::Robot_state()
+{
+
 }
 
 // FONCTION.
