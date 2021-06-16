@@ -72,15 +72,21 @@ class Robot_system
         std::string get_id();
         LibSerial::SerialPort* get_available_port(const int debug_mode, const std::string& message, bool wait_option);
         bool match_ping_pong(std::string ping, std::string pong);
+        float round(float var);
+
+        // FONCTION ANALYSE.
+        void add_texte(cv::Mat image);
+        void add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond);
+        void add_lines(cv::Mat image);
 
         // THREAD.
-        void thread_LOCALISATION();
-        void thread_COMMANDE();
-        void thread_LISTENER(LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name);
-        void thread_SPEAKER(LibSerial::SerialPort** serial_port, int& state, std::string pong_message, double ping_frequence, std::string micro_name);
-        void thread_SERVER_LISTEN();
-        void thread_SERVER_SPEAKER();
-        void thread_ANALYSER();
+        void thread_LOCALISATION(int frequency);
+        void thread_COMMANDE(int frequency);
+        void thread_LISTENER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name);
+        void thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string pong_message, std::string micro_name);
+        void thread_SERVER_LISTEN(int frequency);
+        void thread_SERVER_SPEAKER(int frequency);
+        void thread_ANALYSER(int frequency);
 
 };
  

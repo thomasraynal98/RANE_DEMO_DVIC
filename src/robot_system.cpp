@@ -40,15 +40,15 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update = std::chrono::high_resolution_clock::now();
 
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this);
-    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, 2.0, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this,   __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,   __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, 2.0, "B");
-    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this);
-    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this); 
-    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this); 
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
+    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
+    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
 
     thread_1_localisation.join();
     thread_2_commande.join();
@@ -57,7 +57,7 @@ Robot_system::Robot_system(std::string val_id)
     thread_5_listener_MICROB.join();
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
-    // thread_8_speaker_SERVER.join();
+    thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 }
 
@@ -184,53 +184,62 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
 }
 
 // THREAD.
-void Robot_system::thread_LOCALISATION()
+void Robot_system::thread_LOCALISATION(int frequency)
 {
     /*
         DESCRIPTION: this thread will compute the SLAM algorythme
             and get the position of robot on the current map.
     */
-
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+    
     while(true)
     {   
         // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span = x-last_loop_time;
-        thread_1_hz = 1000/(double)time_span.count();
-        thread_1_last_hz_update = std::chrono::high_resolution_clock::now();
-        last_loop_time = std::chrono::high_resolution_clock::now();
-
-        // std::cout << "[THREAD-1] run localisation. " << "\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_1_hz                = 1000/(double)time_span.count();
+        thread_1_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)(time_of_loop));
+        std::this_thread::sleep_until(next);
+        // END TIMING VARIABLE.
+        // std::cout << "[THREAD-1]\n";
     }
 }
 
-void Robot_system::thread_COMMANDE()
+void Robot_system::thread_COMMANDE(int frequency)
 {
     /*
         DESCRIPTION: this thread will get all input data and user
             information to command all composant.
     */
 
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
     while(true)
     {   
         // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span = x-last_loop_time;
-        thread_2_hz = 1000/(double)time_span.count();
-        thread_2_last_hz_update = std::chrono::high_resolution_clock::now();
-        last_loop_time = std::chrono::high_resolution_clock::now();
-
-        // std::cout << "[THREAD-2] run commande. \n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_2_hz                = 1000/(double)time_span.count();
+        thread_2_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        // END TIMING VARIABLE.
+        // std::cout << "[THREAD-2]\n";
     }
 }
 
-void Robot_system::thread_SPEAKER(LibSerial::SerialPort** serial_port, int& state, std::string pong_message, double ping_frequence, std::string micro_name)
+void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string pong_message, std::string micro_name)
 {   
     /*
         DESCRIPTION: this thread will send ping message all XX00ms,
@@ -248,12 +257,14 @@ void Robot_system::thread_SPEAKER(LibSerial::SerialPort** serial_port, int& stat
         * micro_name     > the name of the microcontroler (A) ou (B).
     */
 
-    int sleep_time       = (1/ping_frequence) * 1000000;                          // time wait until ping.
+    // TIME VARIABLE
+    int time_of_loop     = 1000/frequency;                                       // time wait until ping.
     int time_since_lost  = 500;                                                  // time to declare the port lost and close.
     bool is_lost         = false;
 
     std::chrono::high_resolution_clock::time_point timer_start, current_timer;
     std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
 
     std::string message = "1/X";
 
@@ -277,7 +288,8 @@ void Robot_system::thread_SPEAKER(LibSerial::SerialPort** serial_port, int& stat
         last_loop_time = std::chrono::high_resolution_clock::now();
 
         // send ping all 500ms.
-        usleep(sleep_time);
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
 
         if(*serial_port != NULL)
         {
@@ -316,8 +328,10 @@ void Robot_system::thread_SPEAKER(LibSerial::SerialPort** serial_port, int& stat
     }
 }
 
-void Robot_system::thread_LISTENER(LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name)
-{
+void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name)
+{   
+    // note: special use of frequency parameter in this case.
+
     //last_ping
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     std::chrono::high_resolution_clock::time_point t2;
@@ -345,10 +359,10 @@ void Robot_system::thread_LISTENER(LibSerial::SerialPort** serial_port, int& sta
             thread_5_last_hz_update = std::chrono::high_resolution_clock::now();
         }
         last_loop_time = std::chrono::high_resolution_clock::now();
-        std::cout << micro_name << "\n";
+        
         std::string reponse;
         char stop = '\n';   
-        const unsigned int msTimeout = 100;                      // wait 100ms before pass to next.
+        const unsigned int msTimeout = 1000/frequency;                      // wait 100ms before pass to next.
 
         if(*serial_port != NULL)
         {
@@ -388,84 +402,77 @@ void Robot_system::thread_LISTENER(LibSerial::SerialPort** serial_port, int& sta
     }
 }
 
-void Robot_system::thread_SERVER_LISTEN()
+void Robot_system::thread_SERVER_LISTEN(int frequency)
 {
     /*
         DESCRIPTION: this thread will listen the server and the different order.
     */
 
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
     while(true)
     {   
         // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span = x-last_loop_time;
-        thread_7_hz = 1000/(double)time_span.count();
-        thread_7_last_hz_update = std::chrono::high_resolution_clock::now();
-        last_loop_time = std::chrono::high_resolution_clock::now();
-
-        // std::cout << "[THREAD-7] server listen. \n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_7_hz                = 1000/(double)time_span.count();
+        thread_7_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        // END TIMING VARIABLE.
+        // std::cout << "[THREAD-7]\n";
     }
 }
 
-void Robot_system::thread_SERVER_SPEAKER()
+void Robot_system::thread_SERVER_SPEAKER(int frequency)
 {
     /*
         DESCRIPTION: this thread will speak to the server about all sensor and
             data from the robot.
     */
 
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
     while(true)
     {   
         // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span = x-last_loop_time;
-        thread_8_hz = 1000/(double)time_span.count();
-        thread_8_last_hz_update = std::chrono::high_resolution_clock::now();
-        last_loop_time = std::chrono::high_resolution_clock::now();
-
-        // std::cout << "[THREAD-8] server speaker. \n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_8_hz                = 1000/(double)time_span.count();
+        thread_8_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        // END TIMING VARIABLE.
+        // std::cout << "[THREAD-8]\n";
     }
 }
 
-void Robot_system::thread_ANALYSER()
+float Robot_system::round(float var)
+{
+    // 37.66666 * 100 =3766.66
+    // 3766.66 + .5 =3767.16    for rounding off value
+    // then type cast to int so value is 3767
+    // then divided by 100 so the value converted into 37.67
+    float value = (int)(var * 100 + .5);
+    return (float)value / 100;
+}
+
+void Robot_system::add_texte(cv::Mat image)
 {
     /*
-        DESCRIPTION: this thread will analyse all system data, thread and show 
-            some debug/analyst interface.
+        DESCRIPTION: add title on the image of interface.
     */
-
-    // VARIABLE.
-    std::string state_A, state_B;
-    std::string port_A_name_show, port_B_name_show;
-    cv::Scalar fond_A( 255, 255, 255);
-    cv::Scalar fond_B( 255, 255, 255);
-    cv::Scalar fond_th1( 255, 255, 255);
-    cv::Scalar fond_th2( 255, 255, 255);
-    cv::Scalar fond_th3( 255, 255, 255);
-    cv::Scalar fond_th4( 255, 255, 255);
-    cv::Scalar fond_th5( 255, 255, 255);
-    cv::Scalar fond_th6( 255, 255, 255);
-    cv::Scalar fond_th7( 255, 255, 255);
-    cv::Scalar fond_th8( 255, 255, 255);
-    cv::Scalar fond_th9( 255, 255, 255);
-    std::string th_state = "/";
-
-    std::chrono::high_resolution_clock::time_point comparator_thread;
-    std::chrono::duration<double, std::milli> time_thread;
-    double frequence_th1, frequence_th2, frequence_th3, frequence_th4, frequence_th5, frequence_th6, frequence_th7, frequence_th8, frequence_th9;
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-
-    // VISUAL FEATURE.
-    cv::Mat image(1050, 1000, CV_8UC3, cv::Scalar(255, 255, 255));
-
-    cv::putText(image, //target image
+   cv::putText(image, //target image
             "ROBOT SYSTEM ANALYTIQUE", //text
             cv::Point(10, 35), //top-left position
             2, //font
@@ -550,42 +557,42 @@ void Robot_system::thread_ANALYSER()
             CV_RGB(0, 0, 0), //font color
             1);    
     cv::putText(image, //target image
-            "TH3 - LISTEN MICRO A", //text
+            "TH3 - MICRO A LISTEN", //text
             cv::Point(10, 635), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1);   
     cv::putText(image, //target image
-            "TH4 - SPEAKER MICRO A", //text
+            "TH4 - MICRO A SPEAKER", //text
             cv::Point(10, 685), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1);  
     cv::putText(image, //target image
-            "TH5 - LISTEN MICRO B", //text
+            "TH5 - MICRO B LISTEN", //text
             cv::Point(10, 735), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1);   
     cv::putText(image, //target image
-            "TH6 - SPEAKER MICRO B", //text
+            "TH6 - MICRO B SPEAKER", //text
             cv::Point(10, 785), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1); 
     cv::putText(image, //target image
-            "TH7 - LISTEN SERVER", //text
+            "TH7 - SERVER LISTEN", //text
             cv::Point(10, 835), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1);   
     cv::putText(image, //target image
-            "TH8 - SPEAKER SERVER", //text
+            "TH8 - SERVER SPEAKER", //text
             cv::Point(10, 885), //top-left position
             2, //font
             1.0,
@@ -612,6 +619,100 @@ void Robot_system::thread_ANALYSER()
             1.0,
             CV_RGB(0, 0, 0), //font color
             1); 
+}
+
+void Robot_system::add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond)
+{  
+    rectangle(image, cv::Point(750, A), cv::Point(1000, A+50),
+            fond,
+        -1, cv::LINE_8);
+
+    cv::putText(image, //target image
+        std::__cxx11::to_string(round(hz))+ " Hz", //text
+        cv::Point(460, A+35), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        2); 
+    cv::putText(image, //target image
+        th_state, //text
+        cv::Point(760, A+35), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(255, 255, 255), //font color
+        2);  
+}
+
+void Robot_system::add_lines(cv::Mat image)
+{
+    cv::line(image, cv::Point(0, 50), cv::Point(1000, 50), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 100), cv::Point(1000, 100), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 150), cv::Point(1000, 150), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 200), cv::Point(1000, 200), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 250), cv::Point(1000, 250), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 300), cv::Point(1000, 300), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 350), cv::Point(1000, 350), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 400), cv::Point(1000, 400), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 450), cv::Point(1000, 450), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 500), cv::Point(1000, 500), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 550), cv::Point(1000, 550), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 600), cv::Point(1000, 600), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 650), cv::Point(1000, 650), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 700), cv::Point(1000, 700), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 750), cv::Point(1000, 750), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 800), cv::Point(1000, 800), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 850), cv::Point(1000, 850), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 900), cv::Point(1000, 900), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(0, 950), cv::Point(1000, 950), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0,1000), cv::Point(1000,1000), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+
+    cv::line(image, cv::Point(450, 100), cv::Point( 450, 450), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(450, 500), cv::Point( 450, 950), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(450,1000), cv::Point( 450,1050), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+
+    cv::line(image, cv::Point(750, 100), cv::Point( 750, 450), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(750, 500), cv::Point( 750, 950), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::line(image, cv::Point(750,1000), cv::Point( 750,1050), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+
+}
+
+void Robot_system::thread_ANALYSER(int frequency)
+{
+    /*
+        DESCRIPTION: this thread will analyse all system data, thread and show 
+            some debug/analyst interface.
+    */
+
+    // TIME VARIABLE
+    std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
+    auto next = std::chrono::high_resolution_clock::now();
+    double time_of_loop = 1000/frequency;                   // en milliseconde.
+
+    // VARIABLE.
+    std::string state_A, state_B;
+    std::string port_A_name_show, port_B_name_show;
+    cv::Scalar fond_A( 255, 255, 255);
+    cv::Scalar fond_B( 255, 255, 255);
+    cv::Scalar fond_th1( 255, 255, 255);
+    cv::Scalar fond_th2( 255, 255, 255);
+    cv::Scalar fond_th3( 255, 255, 255);
+    cv::Scalar fond_th4( 255, 255, 255);
+    cv::Scalar fond_th5( 255, 255, 255);
+    cv::Scalar fond_th6( 255, 255, 255);
+    cv::Scalar fond_th7( 255, 255, 255);
+    cv::Scalar fond_th8( 255, 255, 255);
+    cv::Scalar fond_th9( 255, 255, 255);
+    std::string th_state = "/";
+
+    std::chrono::high_resolution_clock::time_point comparator_thread;
+    std::chrono::duration<double, std::milli> time_thread;
+    double frequence_th1, frequence_th2, frequence_th3, frequence_th4, frequence_th5, frequence_th6, frequence_th7, frequence_th8, frequence_th9;
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+
+    // VISUAL FEATURE.
+    cv::Mat image(1050, 1000, CV_8UC3, cv::Scalar(255, 255, 255));
+    add_texte(image);
 
     while(true)
     {
@@ -663,13 +764,16 @@ void Robot_system::thread_ANALYSER()
             CV_RGB(0, 0, 0), //font color
             2);
 
-        // THREAD VISUALISATION CHECKING.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span = x-last_loop_time;
-        thread_9_hz = 1000/(double)time_span.count();
-        thread_9_last_hz_update = std::chrono::high_resolution_clock::now();
-        last_loop_time = std::chrono::high_resolution_clock::now();
+        // TIME VARIABLE.
+        x                           = std::chrono::high_resolution_clock::now();
+        time_span                   = x-last_loop_time;
+        thread_9_hz                 = 1000/(double)time_span.count();
+        thread_9_last_hz_update     = x;
+        last_loop_time              = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
 
+        // THREAD VISUALISATION CHECKING.
         time_span = x-thread_1_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
             fond_th1 = cv::Scalar(0,0,255);
@@ -678,25 +782,8 @@ void Robot_system::thread_ANALYSER()
             fond_th1 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 500), cv::Point(1000, 550),
-            fond_th1,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_1_hz)+ " Hz", //text
-            cv::Point(460, 535), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2); 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 535), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);  
+        add_state(affichage, 500, th_state, thread_1_hz, fond_th1);
 
         time_span = x-thread_2_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -706,25 +793,9 @@ void Robot_system::thread_ANALYSER()
             fond_th2 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 550), cv::Point(1000, 600),
-            fond_th2,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 585), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_2_hz)+ " Hz", //text
-            cv::Point(460, 585), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);    
+        add_state(affichage, 550, th_state, thread_2_hz, fond_th2);
+        
         
         time_span = x-thread_3_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -734,26 +805,9 @@ void Robot_system::thread_ANALYSER()
             fond_th3 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
+
+        add_state(affichage, 600, th_state, thread_3_hz, fond_th3);
         
-        rectangle(affichage, cv::Point(750, 600), cv::Point(1000, 650),
-            fond_th3,
-        -1, cv::LINE_8);
-
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 635), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_3_hz)+ " Hz", //text
-            cv::Point(460, 635), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);  
-
         time_span = x-thread_4_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
             fond_th4 = cv::Scalar(0,0,255);
@@ -762,25 +816,8 @@ void Robot_system::thread_ANALYSER()
             fond_th4 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 650), cv::Point(1000, 700),
-            fond_th4,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 685), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_4_hz)+ " Hz", //text
-            cv::Point(460, 685), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
+        add_state(affichage, 650, th_state, thread_4_hz, fond_th4);
 
         time_span = x-thread_5_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -790,25 +827,8 @@ void Robot_system::thread_ANALYSER()
             fond_th5 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 700), cv::Point(1000, 750),
-            fond_th5,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 735), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_5_hz)+ " Hz", //text
-            cv::Point(460, 735), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
+        add_state(affichage, 700, th_state, thread_5_hz, fond_th5);
 
         time_span = x-thread_6_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -818,25 +838,8 @@ void Robot_system::thread_ANALYSER()
             fond_th6 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 750), cv::Point(1000, 800),
-            fond_th6,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 785), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_6_hz)+ " Hz", //text
-            cv::Point(460, 785), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
+        add_state(affichage, 750, th_state, thread_6_hz, fond_th6);
         
         time_span = x-thread_7_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -846,25 +849,8 @@ void Robot_system::thread_ANALYSER()
             fond_th7 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 800), cv::Point(1000, 850),
-            fond_th7,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 835), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_7_hz)+ " Hz", //text
-            cv::Point(460, 835), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);  
+        add_state(affichage, 800, th_state, thread_7_hz, fond_th7);
         
         time_span = x-thread_8_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -874,25 +860,8 @@ void Robot_system::thread_ANALYSER()
             fond_th8 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 850), cv::Point(1000, 900),
-            fond_th8,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 885), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-            std::__cxx11::to_string(thread_8_hz)+ " Hz", //text
-            cv::Point(460, 885), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2); 
+        add_state(affichage, 850, th_state, thread_8_hz, fond_th8);
 
         time_span = x-thread_9_last_hz_update;
         if((int)time_span.count() > time_since_we_consider_thread_disconnect){
@@ -902,54 +871,9 @@ void Robot_system::thread_ANALYSER()
             fond_th9 = cv::Scalar(0,255,0);
             th_state = "Running";
         }
-        
-        rectangle(affichage, cv::Point(750, 900), cv::Point(1000, 950),
-            fond_th9,
-        -1, cv::LINE_8);
 
-        cv::putText(affichage, //target image
-            th_state, //text
-            cv::Point(760, 935), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(255, 255, 255), //font color
-            2);   
-        cv::putText(affichage, //target image
-                std::__cxx11::to_string(thread_9_hz)+ " Hz", //text
-                cv::Point(460, 935), //top-left position
-                0, //font
-                1.0,
-                CV_RGB(0, 0, 0), //font color
-                2);   
-
-        cv::line(affichage, cv::Point(0, 50), cv::Point(1000, 50), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 100), cv::Point(1000, 100), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 150), cv::Point(1000, 150), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 200), cv::Point(1000, 200), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 250), cv::Point(1000, 250), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 300), cv::Point(1000, 300), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 350), cv::Point(1000, 350), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 400), cv::Point(1000, 400), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 450), cv::Point(1000, 450), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 500), cv::Point(1000, 500), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 550), cv::Point(1000, 550), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 600), cv::Point(1000, 600), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 650), cv::Point(1000, 650), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 700), cv::Point(1000, 700), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 750), cv::Point(1000, 750), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 800), cv::Point(1000, 800), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 850), cv::Point(1000, 850), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 900), cv::Point(1000, 900), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(0, 950), cv::Point(1000, 950), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-        cv::line(affichage, cv::Point(0,1000), cv::Point(1000,1000), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
-
-        cv::line(affichage, cv::Point(450, 100), cv::Point( 450, 450), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(450, 500), cv::Point( 450, 950), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(450,1000), cv::Point( 450,1050), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-
-        cv::line(affichage, cv::Point(750, 100), cv::Point( 750, 450), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(750, 500), cv::Point( 750, 950), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
-        cv::line(affichage, cv::Point(750,1000), cv::Point( 750,1050), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+        add_state(affichage, 900, th_state, thread_9_hz, fond_th9);
+        add_lines(affichage);
 
         cv::imshow("Interface analyse vision.", affichage);
         char c=(char)cv::waitKey(25);
