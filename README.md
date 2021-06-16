@@ -10,10 +10,7 @@ http://libserial.sourceforge.net/doxygen/class_serial_port.html#a6d063c5984b774b
 https://libserial.readthedocs.io/en/latest/tutorial.html
 
 ## TODO 15 JUIN 
-* [IMPROVE]   : Create cv function to avoid the repetition code.
 * [BUG]       : Fix bug 2 ports deconnexion.
-* [IMPROVE]   : Improve thread sleeping to get a precise frequence.
-* [REFLEXION] : Define thread cadence.
 * [ADD]       : Add all variable (voltage, etc...).
-* [HARDWARE]  : Check how can i get the D455.
 * [BUG]       : thread pass to stop when port is disconnect.
+* [BUG]       : thread frequency problem TH3/TH5.
