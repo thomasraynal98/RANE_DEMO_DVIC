@@ -8,7 +8,7 @@ INCLUDE_DIRECTORIES(include)
 
 # set good gcc version.
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread -o CPUUsage")
 
 # find package.
 FIND_PACKAGE(OpenCV 4)

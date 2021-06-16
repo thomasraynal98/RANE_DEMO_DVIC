@@ -20,6 +20,16 @@ class Robot_system
     private:
         // VARIABLE.
         std::string robot_id;
+        double battery_voltage;
+        double robot_speed;
+        double cpu_heat;
+        double cpu_load;
+        double fan_power;
+
+        // VARIABLE FICHIER.
+        std::string path_to_cpu_heat = "/sys/class/thermal/thermal_zone1/temp";
+        std::string path_to_cpu_load = "/proc/loadavg";
+        std::string path_to_fan_power = "";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
         LibSerial::SerialPort** __serial_port_controle_A;
@@ -73,11 +83,13 @@ class Robot_system
         LibSerial::SerialPort* get_available_port(const int debug_mode, const std::string& message, bool wait_option);
         bool match_ping_pong(std::string ping, std::string pong);
         float round(float var);
+        void get_interne_data();
 
         // FONCTION ANALYSE.
         void add_texte(cv::Mat image);
         void add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond);
         void add_lines(cv::Mat image);
+        void add_intern_sensors(cv::Mat image);
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

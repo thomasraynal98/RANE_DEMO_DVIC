@@ -14,12 +14,15 @@
 
 #include "../include/robot_system.h"
 
-
 // CONSTRUCTOR.
 Robot_system::Robot_system(std::string val_id)
 {   
     // initialisation process.
-    robot_id                 = val_id;
+    robot_id      = val_id;
+    robot_speed   = -1;
+    cpu_heat      = -1;
+    cpu_load      = -1;
+    fan_power     = -1;
 
     // initialisation microcontroler.
     LibSerial::SerialPort* _serial_port_controle_A;
@@ -181,6 +184,29 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
 
     // If we found nothing
     return NULL;
+}
+
+void Robot_system::get_interne_data()
+{  
+    std::string data; 
+
+    // // Update cpu load.
+    std::ifstream ifile(path_to_cpu_load);
+    ifile >> data;
+    ifile.close();
+    cpu_load = atof(data.c_str()) * 100;
+
+    // Update cpu heat.
+    std::ifstream ifile_B(path_to_cpu_heat);
+    ifile_B >> data;
+    ifile_B.close();
+    cpu_heat = atof(data.c_str()) / 1000;
+
+    // // Update fan power.
+    // std::ifstream ifile_C(path_to_fan_power);
+    // ifile_C >> data;
+    // ifile_C.close();
+    // fan_power = std::stod(data);
 }
 
 // THREAD.
@@ -433,7 +459,7 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
 {
     /*
         DESCRIPTION: this thread will speak to the server about all sensor and
-            data from the robot.
+            data from the robot. Is
     */
 
     double time_of_loop = 1000/frequency;                  // en milliseconde.
@@ -453,6 +479,10 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
+
+        // GET INTERNE VARIABLE BEFORE SEND.
+        get_interne_data();
+
         // std::cout << "[THREAD-8]\n";
     }
 }
@@ -487,14 +517,14 @@ void Robot_system::add_texte(cv::Mat image)
             CV_RGB(0, 0, 0), //font color
             2);
     cv::putText(image, //target image
-            "A - SENSOR SYSTEM", //text
+            "A - COMMAND SYSTEM", //text
             cv::Point(10, 135), //top-left position
             2, //font
             1.0,
             CV_RGB(0, 0, 0), //font color
             1);
     cv::putText(image, //target image
-            "B - COMMAND SYSTEM", //text
+            "B - SENSOR SYSTEM", //text
             cv::Point(10, 185), //top-left position
             2, //font
             1.0,
@@ -522,7 +552,7 @@ void Robot_system::add_texte(cv::Mat image)
             CV_RGB(0, 0, 0), //font color
             1); 
     cv::putText(image, //target image
-            "NVIDIA HEAT", //text
+            "NVIDIA HEAT/LOAD", //text
             cv::Point(10, 385), //top-left position
             2, //font
             1.0,
@@ -621,6 +651,53 @@ void Robot_system::add_texte(cv::Mat image)
             1); 
 }
 
+void Robot_system::add_intern_sensors(cv::Mat image)
+{   
+    // CPU HEAT.
+    cv::Scalar color_police;
+
+    if(cpu_heat < 45){color_police = cv::Scalar(0, 255, 0);}
+    if(cpu_heat >= 45 && cpu_heat < 65){color_police = cv::Scalar(0, 255, 255);}
+    if(cpu_heat >= 65){color_police = cv::Scalar(0, 0, 255);}
+    if(cpu_heat == -1){color_police = cv::Scalar(200, 200, 200);}
+
+    cv::putText(image, //target image
+        cv::format("%.1f C", cpu_heat), //text
+        cv::Point(460, 385), //top-left position
+        0, //font
+        1.0,
+        color_police, //font color
+        2); 
+    
+    // CPU LOAD.
+    if(cpu_load < 30){color_police = cv::Scalar(0, 255, 0);}
+    if(cpu_load >= 30 && cpu_load < 70){color_police = cv::Scalar(0, 255, 255);}
+    if(cpu_load >= 70){color_police = cv::Scalar(0, 0, 255);}
+    if(cpu_load == -1){color_police = cv::Scalar(200, 200, 200);}
+
+    cv::putText(image, //target image
+        cv::format("%.1f (%)", cpu_load), //text
+        cv::Point(580, 385), //top-left position
+        0, //font
+        1.0,
+        color_police, //font color
+        2); 
+    
+    // FAN POWER.
+    if(fan_power < 30){color_police = cv::Scalar(0, 255, 0);}
+    if(fan_power >= 30 && fan_power < 70){color_police = cv::Scalar(0, 255, 255);}
+    if(fan_power >= 70){color_police = cv::Scalar(0, 0, 255);}
+    if(fan_power == -1){color_police = cv::Scalar(200, 200, 200);}
+
+    cv::putText(image, //target image
+        cv::format("%.1f (%)", fan_power), //text
+        cv::Point(460, 435), //top-left position
+        0, //font
+        1.0,
+        color_police, //font color
+        2); 
+}
+
 void Robot_system::add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond)
 {  
     rectangle(image, cv::Point(750, A), cv::Point(1000, A+50),
@@ -628,7 +705,7 @@ void Robot_system::add_state(cv::Mat image, int A, std::string th_state, double 
         -1, cv::LINE_8);
 
     cv::putText(image, //target image
-        std::__cxx11::to_string(round(hz))+ " Hz", //text
+        cv::format("%2.2f Hz", hz), //text
         cv::Point(460, A+35), //top-left position
         0, //font
         1.0,
@@ -872,6 +949,7 @@ void Robot_system::thread_ANALYSER(int frequency)
             th_state = "Running";
         }
 
+        add_intern_sensors(affichage);
         add_state(affichage, 900, th_state, thread_9_hz, fond_th9);
         add_lines(affichage);
 

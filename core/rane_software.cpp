@@ -19,7 +19,8 @@
 #include <chrono>
 using namespace std::chrono;
 
+using namespace std;
+
 int main(){
     Robot_system rane("MK2R2");
-    std::cout << rane.get_id();
 }
