@@ -188,13 +188,14 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
 
 void Robot_system::get_interne_data()
 {  
-    std::string data; 
+    std::string data = "-1"; 
 
     // // Update cpu load.
     std::ifstream ifile(path_to_cpu_load);
     ifile >> data;
     ifile.close();
     cpu_load = atof(data.c_str()) * 100;
+    data = "-1";
 
     // Update cpu heat.
     std::ifstream ifile_B(path_to_cpu_heat);
@@ -202,11 +203,19 @@ void Robot_system::get_interne_data()
     ifile_B.close();
     cpu_heat = atof(data.c_str()) / 1000;
 
-    // // Update fan power.
-    // std::ifstream ifile_C(path_to_fan_power);
-    // ifile_C >> data;
-    // ifile_C.close();
-    // fan_power = std::stod(data);
+    if(cpu_heat == -1){state_sensor_cpu = 2;}
+    else{state_sensor_cpu = 1;}
+
+    data = "-1";
+
+    // Update fan power.
+    std::ifstream ifile_C(path_to_fan_power);
+    ifile_C >> data;
+    ifile_C.close();
+    fan_power = std::stod(data);
+
+    if(fan_power == -1){state_sensor_fan = 2;}
+    else{state_sensor_fan = 1;}
 }
 
 // THREAD.
@@ -677,11 +686,26 @@ void Robot_system::add_intern_sensors(cv::Mat image)
 
     cv::putText(image, //target image
         cv::format("%.1f (%)", cpu_load), //text
-        cv::Point(580, 385), //top-left position
+        cv::Point(460+120, 385), //top-left position
         0, //font
         1.0,
         color_police, //font color
         2); 
+
+    std::string state = "";
+    if(state_sensor_cpu == 1){color_police = cv::Scalar(0, 255, 0); state = "Connect";}
+    if(state_sensor_cpu == 2){color_police = cv::Scalar(0, 0, 255); state = "Disconnect";}
+    rectangle(image, cv::Point(750, 350), cv::Point(1000, 400),
+        color_police,
+    -1, cv::LINE_8);
+    cv::putText(image, //target image
+        state, //text
+        cv::Point(760, 385), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(255, 255, 255), //font color
+        2); 
+    state = "";
     
     // FAN POWER.
     if(fan_power < 30){color_police = cv::Scalar(0, 255, 0);}
@@ -695,6 +719,19 @@ void Robot_system::add_intern_sensors(cv::Mat image)
         0, //font
         1.0,
         color_police, //font color
+        2); 
+
+    if(state_sensor_fan == 1){color_police = cv::Scalar(0, 255, 0); state = "Connect";}
+    if(state_sensor_fan == 2){color_police = cv::Scalar(0, 0, 255); state = "Disconnect";}
+    rectangle(image, cv::Point(750, 400), cv::Point(1000, 450),
+        color_police,
+    -1, cv::LINE_8);
+    cv::putText(image, //target image
+        state, //text
+        cv::Point(760, 435), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(255, 255, 255), //font color
         2); 
 }
 

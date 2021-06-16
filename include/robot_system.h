@@ -29,7 +29,7 @@ class Robot_system
         // VARIABLE FICHIER.
         std::string path_to_cpu_heat = "/sys/class/thermal/thermal_zone1/temp";
         std::string path_to_cpu_load = "/proc/loadavg";
-        std::string path_to_fan_power = "";
+        std::string path_to_fan_power = "/";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
         LibSerial::SerialPort** __serial_port_controle_A;
@@ -38,8 +38,12 @@ class Robot_system
         std::string port_B_name;
         std::string controler_A_pong = "1/A";                    // note: the pong message is the answer from microcontroler after get "1/X" ping.
         std::string controler_B_pong = "1/B";
-        int state_A_controler = 0;
+        int state_A_controler = 0;  
         int state_B_controler = 0;
+
+        // VARIABLE INTERNE SENSOR.
+        int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
+        int state_sensor_fan = 0;
 
         // VARIABLE THREAD.
         std::thread thread_1_localisation;
