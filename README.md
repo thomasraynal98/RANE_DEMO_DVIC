@@ -13,3 +13,4 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [BUG]       : Fix bug 2 ports deconnexion.
 * [ADD]       : Add all variable (voltage, etc...).
 * [BUG]       : thread pass to stop when port is disconnect.
+* [BUG]       : thread frequency problem TH3/TH5.
