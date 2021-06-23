@@ -6,6 +6,7 @@
 #include <libserial/SerialPort.h>
 #include <libserial/SerialStream.h>
 #include <unistd.h>
+#include <fstream>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>

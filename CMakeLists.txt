@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread -o CPUUsage")
 
 # find package.
-FIND_PACKAGE(OpenCV 4)
+FIND_PACKAGE(OpenCV 4 REQUIRED)
+FIND_PACKAGE(slamcore_sdk REQUIRED)
 
 # add the executable.
 ADD_EXECUTABLE(rane_software 
@@ -23,4 +24,5 @@ ADD_EXECUTABLE(rane_software
 
 TARGET_LINK_LIBRARIES(rane_software
     ${OpenCV_LIBS}
-    /usr/local/lib/libserial.so)
+    /usr/local/lib/libserial.so
+    slamcore::slamcore)
