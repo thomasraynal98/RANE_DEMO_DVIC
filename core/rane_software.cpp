@@ -17,10 +17,19 @@
 #include <ctime>
 #include <ratio>
 #include <chrono>
+
+#include<iostream>
+#include<algorithm>
+#include<fstream>
+#include<iomanip>
+#include<chrono>
+#include <ctime>
+#include <sstream>
+
 using namespace std::chrono;
 
 using namespace std;
 
 int main(){
-    Robot_system rane("MK2R2");
+    // Robot_system rane("MK2R2");
 }
