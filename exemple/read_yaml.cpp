@@ -10,9 +10,8 @@ using namespace std::chrono;
 
 using namespace std;
 
-int main(){
-    // Robot_system rane("MK2R2");
-
+int main()
+{
     cv::FileStorage fsSettings("../data/yaml/param.yaml", cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {

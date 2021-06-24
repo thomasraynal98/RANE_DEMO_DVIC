@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+
 #include "fonction.h"
 
 bool test(bool is_cool)

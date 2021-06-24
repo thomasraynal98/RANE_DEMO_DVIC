@@ -26,3 +26,10 @@ TARGET_LINK_LIBRARIES(rane_software
     ${OpenCV_LIBS}
     /usr/local/lib/libserial.so
     slamcore::slamcore)
+
+# add weighted map executable maker.
+ADD_EXECUTABLE(make_weighted_map
+    core/make_weighted_map.cpp)
+
+TARGET_LINK_LIBRARIES(make_weighted_map
+    ${OpenCV_LIBS})

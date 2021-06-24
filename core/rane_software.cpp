@@ -27,9 +27,9 @@
 #include <sstream>
 
 using namespace std::chrono;
-
 using namespace std;
 
-int main(){
-    // Robot_system rane("MK2R2");
+int main()
+{
+    Robot_system rane("MK2R2");
 }

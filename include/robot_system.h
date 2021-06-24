@@ -12,6 +12,8 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
+#include "fonction.h"
+
 #ifndef ROBOT_SYSTEM_H
 #define ROBOT_SYSTEM_H
  
@@ -23,11 +25,13 @@ class Robot_system
         double battery_voltage;
         double robot_speed;
         std::string robot_general_state;
+        Pose robot_position;
 
         // VARIABLE FICHIER.
-        std::string path_to_cpu_heat  = "/sys/class/thermal/thermal_zone1/temp";
-        std::string path_to_cpu_load  = "/proc/loadavg";
-        std::string path_to_fan_power = "/";
+        std::string path_to_cpu_heat   = "/sys/class/thermal/thermal_zone1/temp";
+        std::string path_to_cpu_load   = "/proc/loadavg";
+        std::string path_to_fan_power  = "/";
+        std::string path_to_param_yaml = "../data/yaml/param.yaml";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
         LibSerial::SerialPort** __serial_port_controle_A;
