@@ -9,8 +9,13 @@ http://libserial.sourceforge.net/doxygen/class_serial_port.html#a6d063c5984b774b
 
 https://libserial.readthedocs.io/en/latest/tutorial.html
 
-## TODO 15 JUIN 
+## FEATURES AND BUGS
 * [BUG]       : Fix bug 2 ports deconnexion.
 * [ADD]       : Add all variable (voltage, etc...).
 * [BUG]       : thread pass to stop when port is disconnect.
 * [BUG]       : thread frequency problem TH3/TH5.
+* [BUG]       : the cpu load is not very accurate.
+* [ADD]       : create a .sh to chmod all component.
+
+## INSTALLATION INFORMATION
+* sometime you need to chmod all ports for microcontrolers.
