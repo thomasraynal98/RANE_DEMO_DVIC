@@ -16,6 +16,7 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [BUG]       : thread frequency problem TH3/TH5.
 * [BUG]       : the cpu load is not very accurate.
 * [ADD]       : create a .sh to chmod all component.
+* [ADD]       : in make_weighted_map.cpp add lower case security for interest name.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.
