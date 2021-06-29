@@ -2,58 +2,6 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
-// #include <stdio.h>
-// #include <string.h>
-// #include <unistd.h>
-// #include <thread>
-
-// #include <libserial/SerialPort.h>
-// #include <libserial/SerialStream.h>
-
-// #include "../include/fonction.h"
-// #include "../include/robot_system.h"
-
-// #include <iostream>
-// #include <ctime>
-// #include <ratio>
-// #include <chrono>
-
-// #include<iostream>
-// #include<algorithm>
-// #include<fstream>
-// #include<iomanip>
-// #include<chrono>
-// #include <ctime>
-// #include <sstream>
-
-// using namespace std::chrono;
-// using namespace std;
-
-// // STRUCTURE.
-// struct node {
-//   int x;
-//   int y;
-//   double cost;
-//   double heuristic;
-// } ;
-
-// int main()
-// {
-//     // Robot_system rane("MK2R2");
-    
-    // // READ IMAGE.
-    // std::string image_path = cv::samples::findFile("../data/map_weighted/dvic1.occupancy.png");
-    // cv::Mat img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
-    // if(img.empty())
-    // {
-    //     std::cout << "Could not read the image: " << image_path << std::endl;
-    //     return 1;
-    // }
-    // cv::imshow("Display window", img);
-    // int k = cv::waitKey(0); 
-
-//     // RUN ALGO.
-// }
 
 // A C++ Program to implement A* Search Algorithm
 #include "math.h"
@@ -284,21 +232,6 @@ void aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 // Driver program to test above function
 int main()
 {
-	/* Description of the Grid-
-	1--> The cell is not blocked
-	0--> The cell is blocked */
-	// array<array<int, 10>, 9> grid{
-	// 	{ { { 1, 0, 1, 1, 1, 1, 0, 1, 1, 1 } },
-	// 	{ { 1, 1, 1, 0, 1, 1, 1, 0, 1, 1 } },
-	// 	{ { 1, 1, 1, 0, 1, 1, 0, 1, 0, 1 } },
-	// 	{ { 0, 0, 1, 0, 1, 0, 0, 0, 0, 1 } },
-	// 	{ { 1, 1, 1, 0, 1, 1, 1, 0, 1, 0 } },
-	// 	{ { 1, 0, 1, 1, 1, 1, 0, 1, 0, 0 } },
-	// 	{ { 1, 0, 0, 0, 0, 1, 0, 0, 0, 1 } },
-	// 	{ { 1, 0, 1, 1, 1, 1, 0, 1, 1, 1 } },
-	// 	{ { 1, 1, 1, 0, 0, 0, 1, 0, 0, 1 } } }
-	// };
-
     // READ IMAGE. ///////////////////////////////////////////////////////////////////////////////
     std::string image_path = cv::samples::findFile("../data/map_weighted/rb1.occupancy.png");
     cv::Mat img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
@@ -307,9 +240,6 @@ int main()
         std::cout << "Could not read the image: " << image_path << std::endl;
         return 1;
     }
-    // cv::imshow("Display window", img);
-    // int k = cv::waitKey(0);
-    //////////////////////////////////////////////////////////////////////////////////////////////
 
 	// Source is the left-most bottom-most corner
 	Pair src(1118, 97);

@@ -85,7 +85,7 @@ bool save_point(std::string name)
 {
     // DESCRIPTION: save all points in .txt file.
     std::string directory = "../data/map_interest_point/";
-    std::string path_interest_point = directory.append(name).append(".txt");
+    std::string path_interest_point = directory.append(name).append("_weighted.txt");
 
     std::ofstream myfile;
     myfile.open(path_interest_point);
