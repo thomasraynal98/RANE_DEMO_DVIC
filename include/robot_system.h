@@ -41,6 +41,7 @@ class Robot_system
         cv::Mat map_weighted;
         Pose robot_position;
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
+        int state_slamcore_tracking = 0;
 
         // VARIABLE FICHIER.
         std::string path_to_cpu_heat        = "/sys/class/thermal/thermal_zone1/temp";
@@ -139,11 +140,13 @@ class Robot_system
         bool isValid(cv::Mat grid, const Pair& point);
         void from_3DW_to_2DM();
 
-        // FONCTION DRAW ANALYSE.
+        // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);
         void add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond);
+        void add_state_slamcore(cv::Mat image);
         void add_lines(cv::Mat image);
         void add_intern_sensors(cv::Mat image);
+        void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

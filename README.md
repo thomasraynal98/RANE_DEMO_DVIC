@@ -17,6 +17,8 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [BUG]       : the cpu load is not very accurate.
 * [ADD]       : create a .sh to chmod all component.
 * [ADD]       : in make_weighted_map.cpp add lower case security for interest name.
+* [BUG]       : resolve the data running problem for metadata callback
+to add it to debug interface.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

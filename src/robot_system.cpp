@@ -299,6 +299,7 @@ try
     // Enable all the streams
     // ******************************************************************
     slam->setStreamEnabled(slamcore::Stream::Pose, true);
+    slam->setStreamEnabled(slamcore::Stream::MetaData, true);
     // *****************************************************************
     // Register callbacks!
     // *****************************************************************
@@ -311,7 +312,8 @@ try
     });
 
     slam->registerCallback<slamcore::Stream::Pose>(
-    [this](const slamcore::PoseInterface<slamcore::camera_clock>::CPtr& poseObj) {
+    [&robot_position = robot_position](const slamcore::PoseInterface<slamcore::camera_clock>::CPtr& poseObj) 
+    {
       robot_position.position.x    = poseObj->getTranslation().x();
       robot_position.position.y    = poseObj->getTranslation().y();
       robot_position.position.z    = poseObj->getTranslation().z();
@@ -321,6 +323,22 @@ try
       robot_position.orientation.w = poseObj->getRotation().w();
       from_quaternion_to_euler(robot_position);
     });
+
+    // TODO: [BUG] resolve this problem.
+    // slam->registerCallback<slamcore::Stream::MetaData>(
+    // [&state_slamcore_tracking = state_slamcore_tracking](const slamcore::MetaDataInterface::CPtr& metaObj) 
+    // {
+    //     slamcore::MetaDataID ID = metaObj->getID();
+    //     switch (ID)
+    //     {
+    //     case slamcore::MetaDataID::TrackingStatus:
+    //     {
+    //         metaObj->getValue(state_slamcore_tracking);
+    //         std::cout << "STATUS : " << state_slamcore_tracking;
+    //     }
+    //     break;
+    //     }
+    // });
 
     // INIT ATTRIBU OBJECT.
     slamcore = std::move(slam);
@@ -564,6 +582,7 @@ void Robot_system::from_3DW_to_2DM()
             the 2D map pixel coordinate.
     */
 }
+
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
@@ -576,7 +595,7 @@ void Robot_system::thread_LOCALISATION(int frequency)
     std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
-    
+
     // START SLAM.
     slamcore->start();
 
@@ -591,11 +610,7 @@ void Robot_system::thread_LOCALISATION(int frequency)
         next                       += std::chrono::milliseconds((int)(time_of_loop));
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
-        std::cout << "[THREAD-1]\n";
-
-        std::cout << robot_position.position.x << ", " <<
-                     robot_position.position.y << ", " <<
-                     robot_position.position.z << "\n";
+        // std::cout << "[THREAD-1]\n";
     }
 }
 
@@ -908,7 +923,7 @@ void Robot_system::add_texte(cv::Mat image)
             CV_RGB(0, 0, 0), //font color
             1);
     cv::putText(image, //target image
-            "CAMERA", //text
+            "CAM & SLAMCORE", //text
             cv::Point(10, 235), //top-left position
             2, //font
             1.0,
@@ -1125,6 +1140,67 @@ void Robot_system::add_state(cv::Mat image, int A, std::string th_state, double 
         2);  
 }
 
+void Robot_system::add_state_slamcore(cv::Mat image)
+{   
+    std::string string_tracking_status = "";
+    cv::Scalar fond_tracking_status( 255, 255, 255);
+
+    if(state_slamcore_tracking == 0){
+        string_tracking_status = "Not initialised";
+        fond_tracking_status = cv::Scalar(0,0,0);
+    }
+    if(state_slamcore_tracking == 1){
+        string_tracking_status = "Ok";
+        fond_tracking_status = cv::Scalar(0,255,0);
+    }
+    if(state_slamcore_tracking == 2){
+        string_tracking_status = "Lost";
+        fond_tracking_status = cv::Scalar(0,0,255);
+    }
+    if(state_slamcore_tracking == 3){
+        string_tracking_status = "Relocalised";
+        fond_tracking_status = cv::Scalar(255,0,255);
+    }
+    if(state_slamcore_tracking == 4){
+        string_tracking_status = "Loop closure";
+        fond_tracking_status = cv::Scalar(255,0,0);
+    }
+
+    rectangle(image, cv::Point(750, 200), cv::Point(1000, 200+50),
+            fond_tracking_status,
+        -1, cv::LINE_8);
+
+    cv::putText(image, //target image
+        string_tracking_status, //text
+        cv::Point(760, 200+35), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(255, 255, 255), //font color
+        2);  
+
+    cv::putText(image, //target image
+        cv::format("%2.2f", robot_position.position.x), //text
+        cv::Point(460, 200+35), //top-left position
+        0, //font
+        0.7,
+        CV_RGB(0, 0, 0), //font color
+        2); 
+    cv::putText(image, //target image
+        cv::format("%2.2f", robot_position.position.y), //text
+        cv::Point(560, 200+35), //top-left position
+        0, //font
+        0.7,
+        CV_RGB(0, 0, 0), //font color
+        2); 
+    cv::putText(image, //target image
+        cv::format("%2.2f", robot_position.euler.y), //text
+        cv::Point(660, 200+35), //top-left position
+        0, //font
+        0.7,
+        CV_RGB(0, 0, 0), //font color
+        2); 
+}
+
 void Robot_system::add_lines(cv::Mat image)
 {
     cv::line(image, cv::Point(0, 50), cv::Point(1000, 50), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
@@ -1200,12 +1276,12 @@ void Robot_system::thread_ANALYSER(int frequency)
     {
         cv::Mat affichage = image.clone();
         // MICRO CONTROLER SHOW.
-        if(state_A_controler == 0){fond_A = (0, 0, 0); state_A = "init"; port_A_name_show = "/";}
+        if(state_A_controler == 0){fond_A = (0, 0, 0); state_A = "Not initialised"; port_A_name_show = "/";}
         if(state_A_controler == 1){fond_A = cv::Scalar(0,255,0); state_A = "Connect"; port_A_name_show = port_A_name;}
         if(state_A_controler == 2){fond_A = cv::Scalar(0,0,255); state_A = "Disconnect"; port_A_name_show = "/";}
         if(state_A_controler == 3){fond_A = cv::Scalar(255,0,255); state_A = "Mute"; port_A_name_show = port_A_name;}
 
-        if(state_B_controler == 0){fond_B = (0, 0, 0); state_B= "init"; port_B_name_show = "/";}
+        if(state_B_controler == 0){fond_B = (0, 0, 0); state_B= "Not initialised"; port_B_name_show = "/";}
         if(state_B_controler == 1){fond_B = cv::Scalar(0,255,0); state_B = "Connect"; port_B_name_show = port_B_name;}
         if(state_B_controler == 2){fond_B = cv::Scalar(0,0,255); state_B = "Disconnect"; port_B_name_show = "/";}
         if(state_B_controler == 3){fond_B = cv::Scalar(255,0,255); state_B = "Mute"; port_B_name_show = port_B_name;}
@@ -1358,11 +1434,21 @@ void Robot_system::thread_ANALYSER(int frequency)
         add_state(affichage, 900, th_state, thread_9_hz, fond_th9);
         add_lines(affichage);
 
+        // ADD STATE SLAMCORE TRACKING.
+        add_state_slamcore(affichage);
+
+
         cv::imshow("Interface analyse vision.", affichage);
         char c=(char)cv::waitKey(25);
-        cv::namedWindow("Car",cv::WINDOW_AUTOSIZE);
-        cv::imshow("Car", debug_visual_map);
+
+        // FOR VISUAL MAP DEBUG.
+        cv::Mat copy_debug_visual_map = debug_visual_map.clone();
+        debug_add_robot_pose(copy_debug_visual_map);
+
+        cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
+        cv::imshow("Debug visual map", copy_debug_visual_map);
         char d=(char)cv::waitKey(25);
+
 	    if(d==27)
 	      break;
     }
@@ -1388,4 +1474,15 @@ void Robot_system::debug_init_debug_map()
             is to debug all navigation algorythme.
     */
     cv::cvtColor(map_weighted ,debug_visual_map, cv::COLOR_GRAY2RGB, 0);
+}
+
+void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
+{
+    /*
+        DESCRIPTION: this function will draw on the copy of debug_visual_map
+            the position of the robot and its orientation.
+    */
+
+    // DRAW ROBOT POSE.
+    // DRAW ROBOT ORIENTATION VECTOR.
 }
