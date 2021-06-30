@@ -7,6 +7,24 @@
 #include <libserial/SerialStream.h>
 #include <unistd.h>
 #include <fstream>
+#include "math.h"
+#include <array>
+#include <chrono>
+#include <cstring>
+#include <iostream>
+#include <queue>
+#include <set>
+#include <stack>
+#include <tuple>
+#include <utility>
+#include <slamcore/slamcore.hpp>
+#include <ctime>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <system_error>
+#include <thread>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -25,6 +43,20 @@ Robot_system::Robot_system(std::string val_id)
     cpu_heat                  = -1;
     cpu_load                  = -1;
     fan_power                 = -1;
+
+    // initialisation SLAM.
+    init_slam_sdk();
+
+    // initialisation map and points (TODO: in the future, no points will be in computer
+    // only send from server).
+    map_weighted = cv::imread(path_to_weighted_map, cv::IMREAD_GRAYSCALE);
+    if(map_weighted.empty())
+    {
+        std::cout << "[ERROR] Could not read the image: " << path_to_weighted_map << std::endl;
+    }
+
+    // initialisation of debug map.
+    debug_init_debug_map();
 
     // initialisation microcontroler.
     LibSerial::SerialPort* _serial_port_controle_A;
@@ -47,29 +79,30 @@ Robot_system::Robot_system(std::string val_id)
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
-    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    // thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
 
     thread_1_localisation.join();
     thread_2_commande.join();
-    thread_3_listener_MICROA.join();
-    thread_4_speaker_MICROA.join();
-    thread_5_listener_MICROB.join();
-    thread_6_speaker_MICROB.join();
+    // thread_3_listener_MICROA.join();
+    // thread_4_speaker_MICROA.join();
+    // thread_5_listener_MICROB.join();
+    // thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
+
+    // end of initialisation.
+    robot_general_state       = Robot_state().waiting;
 }
 
 Robot_state::Robot_state()
-{
-
-}
+{}
 
 // FONCTION.
 std::string Robot_system::get_id()
@@ -225,6 +258,312 @@ void Robot_system::get_interne_data()
     else{state_sensor_fan = 1;}
 }
 
+void Robot_system::init_slam_sdk()
+try
+{
+    /*
+        DESCRIPTION: this function will store all the procedure to start
+            and run the slamcore sdk for localisation in previous session.
+    */
+    // ******************************************************************
+    // Initialise SLAMcore API
+    // ******************************************************************
+    slamcore::slamcoreInit(
+    slamcore::LogSeverity::Info, [](const slamcore::LogMessageInterface& message) {
+      const time_t time = std::chrono::system_clock::to_time_t(message.getTimestamp());
+      struct tm tm;
+      localtime_r(&time, &tm);
+
+      std::cerr << "[" << message.getSeverity() << " " << std::put_time(&tm, "%FT%T%z")
+                << "] " << message.getMessage() << "\n";
+    });
+    // ******************************************************************
+    // Create/Connect SLAM System
+    // ******************************************************************
+    slamcore::v0::SystemConfiguration sysCfg;
+    std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slam =
+        slamcore::createSLAMSystem(sysCfg);
+    if (!slam)
+    {
+        std::cerr << "Error creating SLAM system!" << std::endl;
+        slamcore::slamcoreDeinit();
+        // return -1;
+    }
+
+    std::cout << "Starting SLAM..." << std::endl;
+    // ******************************************************************
+    // Open the device
+    // ******************************************************************
+    slam->openWithSession(path_to_current_session.c_str());
+    // ******************************************************************
+    // Enable all the streams
+    // ******************************************************************
+    slam->setStreamEnabled(slamcore::Stream::Pose, true);
+    // *****************************************************************
+    // Register callbacks!
+    // *****************************************************************
+    slam->registerCallback<slamcore::Stream::ErrorCode>(
+    [](const slamcore::ErrorCodeInterface::CPtr& errorObj) {
+      const auto rc = errorObj->getValue();
+      std::cout << "Received: ErrorCode" << std::endl;
+      std::cout << "\t" << rc.message() << " / " << rc.value() << " / "
+                << rc.category().name() << std::endl;
+    });
+
+    slam->registerCallback<slamcore::Stream::Pose>(
+    [this](const slamcore::PoseInterface<slamcore::camera_clock>::CPtr& poseObj) {
+      robot_position.position.x    = poseObj->getTranslation().x();
+      robot_position.position.y    = poseObj->getTranslation().y();
+      robot_position.position.z    = poseObj->getTranslation().z();
+      robot_position.orientation.x = poseObj->getRotation().x();
+      robot_position.orientation.y = poseObj->getRotation().y();
+      robot_position.orientation.z = poseObj->getRotation().z();
+      robot_position.orientation.w = poseObj->getRotation().w();
+      from_quaternion_to_euler(robot_position);
+    });
+
+    // INIT ATTRIBU OBJECT.
+    slamcore = std::move(slam);
+}
+catch (const slamcore::slam_exception& ex)
+{
+  std::cerr << "system_error exception! " << ex.what() << " / " << ex.code().message()
+            << " / " << ex.code().value() << std::endl;
+  slamcore::slamcoreDeinit();
+//   return -1;
+}
+catch (const std::exception& ex)
+{
+  std::cerr << "Uncaught std::exception! " << ex.what() << std::endl;
+  slamcore::slamcoreDeinit();
+//   return -1;
+}
+catch (...)
+{
+  std::cerr << "Uncaught unknown exception!" << std::endl;
+  slamcore::slamcoreDeinit();
+//   return -1;
+}
+
+// FONCTION NAVIGATION.
+void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
+{
+	// If the source is out of range
+	if (!isValid(grid, src)) {
+		printf("Source is invalid\n");
+		return;
+	}
+
+	// If the destination is out of range
+	if (!isValid(grid, dest)) {
+		printf("Destination is invalid\n");
+		return;
+	}
+
+	// Either the source or the destination is blocked
+	if (!isUnBlocked(grid, src)
+		|| !isUnBlocked(grid, dest)) {
+		printf("Source or the destination is blocked\n");
+		return;
+	}
+
+	// If the destination cell is the same as source cell
+	if (isDestination(src, dest)) {
+		printf("We are already at the destination\n");
+		return;
+	}
+
+	// Create a closed list and initialise it to false which
+	// means that no cell has been included yet This closed
+	// list is implemented as a boolean 2D array
+	bool closedList[grid.rows][grid.cols];
+	memset(closedList, false, sizeof(closedList));
+
+	// Declare a 2D array of structure to hold the details
+	// of that cell
+    // constexpr auto p = static_cast<int>(grid.cols);
+    // const int pp = grid.rows;
+	// array<array<cell, COL>, ROW> cellDetails;
+    int cols = grid.cols;
+    int rows = grid.rows;
+    
+    std::vector<std::vector<cell>> cellDetails(rows, std::vector<cell>(cols));
+
+	int i, j;
+	// Initialising the parameters of the starting node
+	i = src.first, j = src.second;
+	cellDetails[i][j].f = 0.0;
+	cellDetails[i][j].g = 0.0;
+	cellDetails[i][j].h = 0.0;
+	cellDetails[i][j].parent = { i, j };
+
+	/*
+	Create an open list having information as-
+	<f, <i, j>>
+	where f = g + h,
+	and i, j are the row and column index of that cell
+	Note that 0 <= i <= ROW-1 & 0 <= j <= COL-1
+	This open list is implenented as a set of tuple.*/
+	std::priority_queue<Tuple, std::vector<Tuple>,std::greater<Tuple> >openList;
+
+
+	// Put the starting cell on the open list and set its
+	// 'f' as 0
+	openList.emplace(0.0, i, j);
+
+
+	// We set this boolean value as false as initially
+	// the destination is not reached.
+    // high_resolution_clock::time_point t1 = high_resolution_clock::now();
+	while (!openList.empty()) {
+		const Tuple& p = openList.top();
+		// Add this vertex to the closed list
+		i = std::get<1>(p); // second element of tupla
+		j = std::get<2>(p); // third element of tupla
+
+		// Remove this vertex from the open list
+		openList.pop();
+		closedList[i][j] = true;
+		/*
+				Generating all the 8 successor of this cell
+						N.W N N.E
+						\ | /
+						\ | /
+						W----Cell----E
+								/ | \
+						/ | \
+						S.W S S.E
+
+				Cell-->Popped Cell (i, j)
+				N --> North	 (i-1, j)
+				S --> South	 (i+1, j)
+				E --> East	 (i, j+1)
+				W --> West		 (i, j-1)
+				N.E--> North-East (i-1, j+1)
+				N.W--> North-West (i-1, j-1)
+				S.E--> South-East (i+1, j+1)
+				S.W--> South-West (i+1, j-1)
+		*/
+		for (int add_x = -1; add_x <= 1; add_x++) {
+			for (int add_y = -1; add_y <= 1; add_y++) {
+				Pair neighbour(i + add_x, j + add_y);
+				// Only process this cell if this is a valid
+				// one
+				if (isValid(grid, neighbour)) {
+					// If the destination cell is the same
+					// as the current successor
+					if (isDestination(neighbour, dest)) 
+                    { // Set the Parent of
+									// the destination cell
+						cellDetails[neighbour.first][neighbour.second].parent = { i, j };
+						printf("The destination cell is found\n");
+						// tracePath(cellDetails, dest);
+                        // high_resolution_clock::time_point t2 = high_resolution_clock::now();
+ 
+                        // duration<double, std::milli> time_span = t2 - t1;
+
+                        // Show. //////////////////////////////////////////////////////////////////
+                        std::stack<Pair> Path;
+                        int row = dest.first;
+                        int col = dest.second;
+                        Pair next_node = cellDetails[row][col].parent;
+                        do {
+                            Path.push(next_node);
+                            next_node = cellDetails[row][col].parent;
+                            row = next_node.first;
+                            col = next_node.second;
+                        } while (cellDetails[row][col].parent != next_node);
+                        
+                        Path.emplace(row, col);
+                        while (!Path.empty()) {
+                            Pair p = Path.top();
+                            Path.pop();
+                            printf("-> (%d,%d) ", p.first, p.second);
+                        }
+                        ///////////////////////////////////////////////////////////////////////////
+                        
+                        // std::cout << "It took me " << time_span.count() << " milliseconds.";
+                        // std::cout << std::endl;
+
+						return;
+					}
+					// If the successor is already on the
+					// closed list or if it is blocked, then
+					// ignore it. Else do the following
+					else if (!closedList[neighbour.first][neighbour.second] && isUnBlocked(grid, neighbour)) 
+                    {
+						double gNew, hNew, fNew;
+						gNew = cellDetails[i][j].g + 1.0;
+						hNew = calculateHValue(neighbour, dest);
+						fNew = gNew + hNew;
+
+						// If it isn’t on the open list, add
+						// it to the open list. Make the
+						// current square the parent of this
+						// square. Record the f, g, and h
+						// costs of the square cell
+						//			 OR
+						// If it is on the open list
+						// already, check to see if this
+						// path to that square is better,
+						// using 'f' cost as the measure.
+						if (cellDetails[neighbour.first][neighbour.second].f == -1 || cellDetails[neighbour.first][neighbour.second].f > fNew) 
+                        {
+							openList.emplace(fNew, neighbour.first,neighbour.second);
+
+							// Update the details of this
+							// cell
+							cellDetails[neighbour.first][neighbour.second].g = gNew;
+							cellDetails[neighbour.first][neighbour.second].h = hNew;
+							cellDetails[neighbour.first][neighbour.second].f = fNew;
+							cellDetails[neighbour.first][neighbour.second].parent = { i, j };
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// When the destination cell is not found and the open
+	// list is empty, then we conclude that we failed to
+	// reach the destiantion cell. This may happen when the
+	// there is no way to destination cell (due to
+	// blockages)
+
+	printf("Failed to find the Destination Cell\n");
+}
+
+double Robot_system::calculateHValue(const Pair& src, const Pair& dest)
+{
+	// h is estimated with the two points distance formula
+	return sqrt(pow((src.first - dest.first), 2.0)
+				+ pow((src.second - dest.second), 2.0));
+}
+
+bool Robot_system::isDestination(const Pair& position, const Pair& dest)
+{
+	return position == dest;
+}
+
+bool Robot_system::isUnBlocked(cv::Mat grid, const Pair& point)
+{
+	// Returns true if the cell is not blocked else false
+	return isValid(grid, point) && ((grid.at<uchar>(point.first,point.second) == 255) || (grid.at<uchar>(point.first,point.second) == 200));
+}
+
+bool Robot_system::isValid(cv::Mat grid, const Pair& point)
+{ 
+    // Returns true if row number and column number is in range.
+    return (point.first >= 0) && (point.first < grid.rows) && (point.second >= 0) && (point.second < grid.cols);
+}
+
+void Robot_system::from_3DW_to_2DM()
+{
+    /*
+        DESCRIPTION: this function will convert the 3D world pose into
+            the 2D map pixel coordinate.
+    */
+}
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
@@ -238,7 +577,10 @@ void Robot_system::thread_LOCALISATION(int frequency)
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
     
-    while(true)
+    // START SLAM.
+    slamcore->start();
+
+    while(slamcore->spinOnce())
     {   
         // TIMING VARIABLE.
         x                          = std::chrono::high_resolution_clock::now();         
@@ -249,7 +591,11 @@ void Robot_system::thread_LOCALISATION(int frequency)
         next                       += std::chrono::milliseconds((int)(time_of_loop));
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
-        // std::cout << "[THREAD-1]\n";
+        std::cout << "[THREAD-1]\n";
+
+        std::cout << robot_position.position.x << ", " <<
+                     robot_position.position.y << ", " <<
+                     robot_position.position.z << "\n";
     }
 }
 
@@ -277,7 +623,22 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
-        // std::cout << "[THREAD-2]\n";
+        // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
+
+        if(robot_general_state == Robot_state::follow)
+        {   
+            // INFO : We are in follow mode.
+            //     1. Check if we have a global path.
+            if(true)
+            {
+
+            }
+            else
+            {
+                // We need to compute a global path.
+            }
+
+        }
     }
 }
 
@@ -999,8 +1360,32 @@ void Robot_system::thread_ANALYSER(int frequency)
 
         cv::imshow("Interface analyse vision.", affichage);
         char c=(char)cv::waitKey(25);
-	    if(c==27)
+        cv::namedWindow("Car",cv::WINDOW_AUTOSIZE);
+        cv::imshow("Car", debug_visual_map);
+        char d=(char)cv::waitKey(25);
+	    if(d==27)
 	      break;
     }
 }
 
+// DEBUG FONCTION.
+void Robot_system::debug_message_server()
+{
+    /*
+        DESCRIPTION: the purpose of this function is only simulate the
+            message from server in "string" format only for rapid 
+            debug process.
+        INFO       : this function will not be use at the end.
+    */
+    std::cout << "debug";
+}
+
+void Robot_system::debug_init_debug_map()
+{
+    /*
+        DESCRIPTION: this function will init the visual map for debug,
+            this map it's a rgb version of map_weighted and is purpose
+            is to debug all navigation algorythme.
+    */
+    cv::cvtColor(map_weighted ,debug_visual_map, cv::COLOR_GRAY2RGB, 0);
+}

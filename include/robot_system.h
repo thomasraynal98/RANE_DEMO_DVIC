@@ -6,6 +6,17 @@
 #include <libserial/SerialPort.h>
 #include <libserial/SerialStream.h>
 #include <unistd.h>
+#include "math.h"
+#include <array>
+#include <chrono>
+#include <cstring>
+#include <iostream>
+#include <queue>
+#include <set>
+#include <stack>
+#include <tuple>
+#include <utility>
+#include <slamcore/slamcore.hpp>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -16,7 +27,7 @@
 
 #ifndef ROBOT_SYSTEM_H
 #define ROBOT_SYSTEM_H
- 
+
 class Robot_system
 {
     private:
@@ -25,13 +36,19 @@ class Robot_system
         double battery_voltage;
         double robot_speed;
         std::string robot_general_state;
+
+        // NAVIGATION VARIABLE.
+        cv::Mat map_weighted;
         Pose robot_position;
+        std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
 
         // VARIABLE FICHIER.
-        std::string path_to_cpu_heat   = "/sys/class/thermal/thermal_zone1/temp";
-        std::string path_to_cpu_load   = "/proc/loadavg";
-        std::string path_to_fan_power  = "/";
-        std::string path_to_param_yaml = "../data/yaml/param.yaml";
+        std::string path_to_cpu_heat        = "/sys/class/thermal/thermal_zone1/temp";
+        std::string path_to_cpu_load        = "/proc/loadavg";
+        std::string path_to_fan_power       = "/";
+        std::string path_to_param_yaml      = "../data/yaml/param.yaml";
+        std::string path_to_weighted_map    = "../data/map_weighted/dvic1.occupancy.png";
+        std::string path_to_current_session = "../data/session/dvic1.session";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
         LibSerial::SerialPort** __serial_port_controle_A;
@@ -42,6 +59,9 @@ class Robot_system
         std::string controler_B_pong = "1/B";
         int state_A_controler = 0;  
         int state_B_controler = 0;
+
+        // VARIABLE DEBUG.
+        cv::Mat debug_visual_map;
 
         // VARIABLE INTERNE SENSOR.
         int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
@@ -84,6 +104,22 @@ class Robot_system
         double time_since_we_consider_thread_disconnect = 500;   // note: time in ms.
 
     public:
+        typedef std::pair<int, int> Pair;
+        typedef std::tuple<double, int, int> Tuple;
+        struct cell {
+            // Row and Column index of its parent
+            Pair parent;
+            // f = g + h
+            double f, g, h;
+            cell()
+                : parent()
+                , f(-1)
+                , g(-1)
+                , h(-1)
+            {
+            }
+        };
+
         // CONSTRUCTEUR.
         Robot_system(std::string val_id);
 
@@ -93,8 +129,17 @@ class Robot_system
         bool match_ping_pong(std::string ping, std::string pong);
         float round(float var);
         void get_interne_data();
+        void init_slam_sdk();
 
-        // FONCTION ANALYSE.
+        // FONCTION NAVIGATION.
+        void aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest);
+        double calculateHValue(const Pair& src, const Pair& dest);
+        bool isDestination(const Pair& position, const Pair& dest);
+        bool isUnBlocked(cv::Mat grid, const Pair& point);
+        bool isValid(cv::Mat grid, const Pair& point);
+        void from_3DW_to_2DM();
+
+        // FONCTION DRAW ANALYSE.
         void add_texte(cv::Mat image);
         void add_state(cv::Mat image, int A, std::string th_state, double hz, cv::Scalar fond);
         void add_lines(cv::Mat image);
@@ -109,21 +154,25 @@ class Robot_system
         void thread_SERVER_SPEAKER(int frequency);
         void thread_ANALYSER(int frequency);
 
+        // FONCTION DEBUG.
+        void debug_message_server();
+        void debug_init_debug_map();
 };
 
 class Robot_state{
     public:
         // ALL STATE.
         Robot_state();
-        std::string const initialisation = "initialisation";
-        std::string const waiting        = "waiting";
-        std::string const manual         = "manual";
-        std::string const autonomous_nav = "autonomous_nav";
-        std::string const follow         = "follow";
-        std::string const home           = "home";
-        std::string const compute_nav    = "compute_nav";
-        std::string const cleaning       = "cleaning";
-        std::string const patrolling     = "patrolling";
-        std::string const reset          = "reset";
+        inline static const std::string initialisation = "initialisation";
+        inline static const std::string waiting        = "waiting";
+        inline static const std::string manual         = "manual";
+        inline static const std::string autonomous_nav = "autonomous_nav";
+        inline static const std::string follow         = "follow";
+        inline static const std::string home           = "home";
+        inline static const std::string compute_nav    = "compute_nav";
+        inline static const std::string cleaning       = "cleaning";
+        inline static const std::string patrolling     = "patrolling";
+        inline static const std::string reset          = "reset";
+        inline static const std::string debug          = "debug";
 };
 #endif

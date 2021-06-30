@@ -232,6 +232,7 @@ void aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 // Driver program to test above function
 int main()
 {
+
     // READ IMAGE. ///////////////////////////////////////////////////////////////////////////////
     std::string image_path = cv::samples::findFile("../data/map_weighted/rb1.occupancy.png");
     cv::Mat img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);

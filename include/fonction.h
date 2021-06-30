@@ -3,6 +3,8 @@
 
 struct Pose 
 {
+    // Store all position data in multi type.
+
     struct Translation
     {
         double x{0}, y{0}, z{0};
@@ -15,6 +17,10 @@ struct Pose
     {
         double r{0}, p{0}, y{0};
     } euler;
+    struct Pixel
+    {
+        int i{0}, j{0};
+    } pixel;
 };
 
 bool test(bool is_cool);
