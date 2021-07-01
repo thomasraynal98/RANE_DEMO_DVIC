@@ -176,6 +176,10 @@ class Robot_system
         bool isValid(cv::Mat grid, const Pair& point);
         void from_3DW_to_2DM();
         void from_global_path_to_keypoints_path(std::stack<Pair> Path, double distance_between_keypoint);
+        double compute_distance_validation();
+        double compute_target_angle();
+        double compute_vector_RKP(const Pair& kp);
+        double compute_distance_RPK(const Pair& kp);
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

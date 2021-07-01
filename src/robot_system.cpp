@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include "math.h"
 #include <array>
+#include <cmath>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -624,10 +626,95 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path, dou
         if(first_keypoint)
         {
             Path_keypoint current_keypoint;
-            current_keypoint.coordinate    = vector_global_path[i];
-            current_keypoint.distance_KPD  = vector_distances_from_destination[i];
+
+            // fix variable.
+            current_keypoint.coordinate          = vector_global_path[i];
+            current_keypoint.distance_KPD        = vector_distances_from_destination[i];
+            current_keypoint.validation_angle    = 0;
+            current_keypoint.isTryAvoidArea      = map_weighted.at<uchar>(current_keypoint.coordinate.first, current_keypoint.coordinate.second);
+            current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
+            
+            // non fix variable.
+            current_keypoint.isReach             = true;
+            current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
+            current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+        }
+        else
+        {
+            
         }
     }
+}
+
+double Robot_system::compute_distance_validation(Path_keypoint kp)
+{
+    /*
+        DESCRIPTION: this function will compute and return the distance of validation.
+            this distance means the minimun distance between robot and focus points
+            to be considered like reach.
+        INFORMATION: this distance take in consideration, the nature of the current 
+            area (try_avoid or not) and the validation angle. 
+        TODO       : take also in consideration the speed in futur.
+        COMPUTE    : the value is between 0.05m in worst case where precision in needed
+            and 0.40m in case that don't necessite precision.
+    */
+
+    double value = 0.05;
+    if(!kp.isTryAvoidArea)          { value += 0.20; }
+    if(kp.validation_angle <= 90/4) { value += 0.15; }
+    return value;
+}
+
+double Robot_system::compute_target_angle(Path_keypoint kp)
+{
+    /*
+        DESCRIPTION: this function will compute and return the angle between the 
+            current orientation of robot and the angle of pose of robot and pose
+            of path_keypoint pose.
+        COMPUTE    : the value is between 0° deg and 180° deg only > 0.
+    */
+
+    double angle_RKP         = compute_vector_RKP(kp);
+    double angle_ORIENTATION = robot_position.euler.y * (180/M_PI);
+    double distance_deg      = -1;
+
+    if(((angle_ORIENTATION - angle_RKP) % 360) > 180)
+    {
+        distance_deg = 360 - ((angle_RKP - angle_ORIENTATION) % 360);
+    }
+    else
+    {
+        distance_deg = (angle_RKP - angle_ORIENTATION) % 360
+    }
+
+    return distance_deg;
+}
+
+double Robot_system::compute_vector_RKP(const Pair& kp)
+{
+    /*
+        DESCRIPTION: compute the angle in world map referenciel of vector 
+            from robot to keypoint. (like North, West, East, South)
+    */
+    
+    double x_sum = kp.coordinate.first  - robot_position.pixel.i;
+    double y_sum = kp.coordinate.second - robot_position.pixel.j;
+
+    double angle_degree = acos((x_sum)/(sqrt(pow(x_sum, 2.0) + pow(y_sum, 2.0))));
+    if(y_sum < 0)
+    {
+        angle_degree = (M_PI - angle_degree) + M_PI;
+    }
+    return angle_degree * (180/M_PI);
+}
+
+double Robot_system::compute_distance_RPK(const Pair& kp)
+{
+    /*
+        DESCRIPTION: return the distance between robot en kp.
+    */
+    return sqrt(pow((kp.first - robot_position.pixel.i), 2.0)
+            + pow((kp.second - robot_position.pixel.j), 2.0));
 }
 
 // THREAD.

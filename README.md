@@ -22,6 +22,7 @@ to add it to debug interface.
 * [ADD]       : for the moment the "try_avoid" area is only use for
 validation distance and not in A* algorythme.
 * [ADD]       : automatic distance between KP en fonction of drift security distance.
+* [ADD]       : take speed of robot in compte to create validation speed.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.
