@@ -473,14 +473,11 @@ void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 					// If the destination cell is the same
 					// as the current successor
 					if (isDestination(neighbour, dest)) 
-                    { // Set the Parent of
-									// the destination cell
+                    {   // Set the Parent of
+                        // the destination cell
 						cellDetails[neighbour.first][neighbour.second].parent = { i, j };
 						printf("The destination cell is found\n");
-						// tracePath(cellDetails, dest);
-                        // high_resolution_clock::time_point t2 = high_resolution_clock::now();
- 
-                        // duration<double, std::milli> time_span = t2 - t1;
+
 
                         // Show. //////////////////////////////////////////////////////////////////
                         std::stack<Pair> Path;
@@ -494,16 +491,8 @@ void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
                             col = next_node.second;
                         } while (cellDetails[row][col].parent != next_node);
                         
-                        Path.emplace(row, col);
-                        while (!Path.empty()) {
-                            Pair p = Path.top();
-                            Path.pop();
-                            printf("-> (%d,%d) ", p.first, p.second);
-                        }
-                        ///////////////////////////////////////////////////////////////////////////
-                        
-                        // std::cout << "It took me " << time_span.count() << " milliseconds.";
-                        // std::cout << std::endl;
+
+                        from_global_path_to_keypoints_path(Path)
 
 						return;
 					}
@@ -585,7 +574,7 @@ void Robot_system::from_3DW_to_2DM()
     */
 }
 
-void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path, double distance_between_keypoint)
+void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
 {
     /*
         DESCRIPTION: the goal of this function is to take the brute global map
@@ -614,7 +603,6 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path, dou
     }
     
     // Variable.
-    Pair last_add_keypoint;
     bool first_keypoint = true;
 
     // Clear vector.
@@ -622,26 +610,74 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path, dou
 
     // Select Keypoints and compute data.
     for(int i = 0; i < vector_global_path.size(); i++)
-    {
-        if(first_keypoint)
-        {
-            Path_keypoint current_keypoint;
+    {   
+        Path_keypoint current_keypoint;
 
-            // fix variable.
-            current_keypoint.coordinate          = vector_global_path[i];
-            current_keypoint.distance_KPD        = vector_distances_from_destination[i];
-            current_keypoint.validation_angle    = 0;
-            current_keypoint.isTryAvoidArea      = map_weighted.at<uchar>(current_keypoint.coordinate.first, current_keypoint.coordinate.second);
-            current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
+        // OK if it's the last point.
+        if(i == vector_global_path.size()-1)
+        {
+                // fix variable.
+                current_keypoint.coordinate          = vector_global_path[i];
+                current_keypoint.distance_KPD        = 0;
+                current_keypoint.validation_angle    = 100; // for validation.
+                current_keypoint.isTryAvoidArea      = 200; // for validation.
+                current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
+                
+                // non fix variable.
+                current_keypoint.isReach             = false;
+                current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
+                current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
             
-            // non fix variable.
-            current_keypoint.isReach             = true;
-            current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
-            current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+                // push.
+                keypoints_path.push(current_keypoint);
         }
         else
-        {
+        {   
+            // OK if it's current position (start).
+            if(first_keypoint)
+            {
+                first_keypoint                       = false;
+
+                // fix variable.
+                current_keypoint.coordinate          = vector_global_path[i];
+                current_keypoint.distance_KPD        = vector_distances_from_destination[i];
+                current_keypoint.validation_angle    = 0;
+                current_keypoint.isTryAvoidArea      = map_weighted.at<uchar>(current_keypoint.coordinate.first, current_keypoint.coordinate.second);
+                current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
+                
+                // non fix variable.
+                current_keypoint.isReach             = true;
+                current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
+                current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
             
+                // push.
+                keypoints_path.push(current_keypoint);
+            }
+            else
+            {
+                // OK if point it's enought far from last kp. 
+                if(calculateHValue(last_add_keypoint, vector_global_path[i]) => distance_between_keypoint)
+                {
+                    // fix variable.
+                    current_keypoint.coordinate          = vector_global_path[i];
+                    current_keypoint.distance_KPD        = vector_distances_from_destination[i];
+                    if(keypoints_path.size() != 1)
+                    {
+                        // to avoid some bug to first element in this categories.
+                        keypoints_path[keypoints_path.size()].validation_angle = compute_validation_angle(keypoints_path[keypoints_path.size()-1].coordinate, keypoints_path[keypoints_path.size()].coordinate, current_keypoint.coordinate);
+                    }
+                    current_keypoint.isTryAvoidArea      = map_weighted.at<uchar>(current_keypoint.coordinate.first, current_keypoint.coordinate.second);
+                    current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
+                    
+                    // non fix variable.
+                    current_keypoint.isReach             = false;
+                    current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
+                    current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+
+                    // push.
+                    keypoints_path.push(current_keypoint);
+                }
+            }
         }
     }
 }
@@ -697,8 +733,25 @@ double Robot_system::compute_vector_RKP(const Pair& kp)
             from robot to keypoint. (like North, West, East, South)
     */
     
-    double x_sum = kp.coordinate.first  - robot_position.pixel.i;
-    double y_sum = kp.coordinate.second - robot_position.pixel.j;
+    double x_sum = kp.first  - robot_position.pixel.i;
+    double y_sum = kp.second - robot_position.pixel.j;
+
+    double angle_degree = acos((x_sum)/(sqrt(pow(x_sum, 2.0) + pow(y_sum, 2.0))));
+    if(y_sum < 0)
+    {
+        angle_degree = (M_PI - angle_degree) + M_PI;
+    }
+    return angle_degree * (180/M_PI);
+}
+
+double Robot_system::compute_vector_RKP_2(const Pair& kpCurrent, const Pair& kp2)
+{
+    /*
+        DESCRIPTION: same as version 1 but will take two points in param.
+    */
+
+    double x_sum = kp2.first  - kpCurrent.first;
+    double y_sum = kp2.second - kpCurrent.second;
 
     double angle_degree = acos((x_sum)/(sqrt(pow(x_sum, 2.0) + pow(y_sum, 2.0))));
     if(y_sum < 0)
@@ -715,6 +768,30 @@ double Robot_system::compute_distance_RPK(const Pair& kp)
     */
     return sqrt(pow((kp.first - robot_position.pixel.i), 2.0)
             + pow((kp.second - robot_position.pixel.j), 2.0));
+}
+
+double Robot_system::compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext)
+{
+    /*
+        DESCRIPTION: this function will compute validation angle, it's an angle form from 3 points,
+            the current one, the previously and the next one.
+    */
+    
+    double angle_RPREV   = compute_vector_RKP_2(kpPrev, kpCurrent);
+    double angle_RNEXT   = compute_vector_RKP_2(kpCurrent, kpNext);
+    double distance_deg  = -1;
+
+    if(((angle_RPREV - angle_RNEXT) % 360) > 180)
+    {
+        distance_deg = 360 - ((angle_RNEXT - angle_RPREV) % 360);
+    }
+    else
+    {
+        distance_deg = (angle_RNEXT - angle_RPREV) % 360
+    }
+
+    return distance_deg;
+    
 }
 
 // THREAD.

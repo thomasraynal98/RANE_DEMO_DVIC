@@ -36,6 +36,7 @@ class Robot_system
         double battery_voltage;
         double robot_speed;
         std::string robot_general_state;
+        double distance_between_keypoint;
 
         // NAVIGATION VARIABLE.
         cv::Mat map_weighted;
@@ -175,11 +176,13 @@ class Robot_system
         bool isUnBlocked(cv::Mat grid, const Pair& point);
         bool isValid(cv::Mat grid, const Pair& point);
         void from_3DW_to_2DM();
-        void from_global_path_to_keypoints_path(std::stack<Pair> Path, double distance_between_keypoint);
+        void from_global_path_to_keypoints_path(std::stack<Pair> Path);
         double compute_distance_validation();
         double compute_target_angle();
         double compute_vector_RKP(const Pair& kp);
+        double compute_vector_RKP_2(const Pair& kpCurrent, const Pair& kp2);
         double compute_distance_RPK(const Pair& kp);
+        double compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext);
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);
