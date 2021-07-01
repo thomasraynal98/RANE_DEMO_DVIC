@@ -19,6 +19,9 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [ADD]       : in make_weighted_map.cpp add lower case security for interest name.
 * [BUG]       : resolve the data running problem for metadata callback
 to add it to debug interface.
+* [ADD]       : for the moment the "try_avoid" area is only use for
+validation distance and not in A* algorythme.
+* [ADD]       : automatic distance between KP en fonction of drift security distance.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

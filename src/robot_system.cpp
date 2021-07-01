@@ -583,6 +583,53 @@ void Robot_system::from_3DW_to_2DM()
     */
 }
 
+void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path, double distance_between_keypoint)
+{
+    /*
+        DESCRIPTION: the goal of this function is to take the brute global map
+            from A* algorythme, and create a usefull list of keypoint and add
+            some information for navigation process like distance_KPD, validation_angle
+            isTryAvoidArea and distance_validation.
+    */
+
+    // Transform stack into vector and compute distance from destination.
+    std::vector<Pair> vector_global_path;
+    std::vector<double> vector_distances_from_destination;
+    bool isDestination = true;
+    double the_distance_from_destination = 0;
+    Pair previous_p = NULL;
+    while(!Path.empty())
+    {
+        Pair p = Path.top();
+        Path.pop();
+
+        if(previous_p != NULL) {the_distance_from_destination += calculateHValue(previous_p, p);}
+
+        vector_distances_from_destination.insert(vector_distances_from_destination.begin(), the_distance_from_destination);        
+        vector_global_path.insert(vector_global_path.begin(), p);
+        
+        previous_p = p;
+    }
+    
+    // Variable.
+    Pair last_add_keypoint;
+    bool first_keypoint = true;
+
+    // Clear vector.
+    keypoints_path.clear()
+
+    // Select Keypoints and compute data.
+    for(int i = 0; i < vector_global_path.size(); i++)
+    {
+        if(first_keypoint)
+        {
+            Path_keypoint current_keypoint;
+            current_keypoint.coordinate    = vector_global_path[i];
+            current_keypoint.distance_KPD  = vector_distances_from_destination[i];
+        }
+    }
+}
+
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
