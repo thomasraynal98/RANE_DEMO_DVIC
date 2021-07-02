@@ -44,6 +44,8 @@ class Robot_system
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
         int state_slamcore_tracking = 0;
         std::vector<Path_keypoint> keypoints_path;
+        Path_keypoint* target_keypoint;
+        vector<Path_keypoint*> possible_candidate_target_keypoint;
 
         // VARIABLE FICHIER.
         std::string path_to_cpu_heat        = "/sys/class/thermal/thermal_zone1/temp";
@@ -176,6 +178,7 @@ class Robot_system
         bool isUnBlocked(cv::Mat grid, const Pair& point);
         bool isValid(cv::Mat grid, const Pair& point);
         void from_3DW_to_2DM();
+        Pair from_3DW_to_2DM2(double x, double y);
         void from_global_path_to_keypoints_path(std::stack<Pair> Path);
         double compute_distance_validation();
         double compute_target_angle();
@@ -183,6 +186,8 @@ class Robot_system
         double compute_vector_RKP_2(const Pair& kpCurrent, const Pair& kp2);
         double compute_distance_RPK(const Pair& kp);
         double compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext);
+        void select_target_keypoint();
+        void return_nearest_path_keypoint(int threshold);
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

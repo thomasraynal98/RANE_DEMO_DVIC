@@ -574,6 +574,19 @@ void Robot_system::from_3DW_to_2DM()
     */
 }
 
+Pair Robot_system::from_3DW_to_2DM2(double x, double y)
+{
+    /*
+        DESCRIPTION: this function will convert the 3D world pose into
+            the 2D map pixel coordinate. But this version take x, y in param
+            Param is in world coordinate system.
+    */
+
+    Pair point_pixel;
+
+    return point_pixel;
+}
+
 void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
 {
     /*
@@ -792,6 +805,97 @@ double Robot_system::compute_validation_angle(const Pair& kpPrev, const Pair& kp
 
     return distance_deg;
     
+}
+
+void Robot_system::select_target_keypoint()
+{
+    /*
+        DESCRIPTION: this fundamentale function will take all state data 
+            en compte for select the better target keypoint between all
+            path_keypoint in keypoints_path vector.
+        HEURISTIC  : there are multiple variable and the heuristic need 
+            to be fine tunned but this is the order of importence for 
+            all variable
+                > 1. (YES) distance_RKP
+                > 2. (YES) target_angle
+                > 3. (NO) isReach  
+                > 4. (NO) distance_KPD
+        PS         : that can be a good feature to integrate the neural 
+            network in this process. Or to integrate a variable that say
+            if there are an object between robot and kp.
+    */
+
+    // MAKE SHURE distance_RPK and target_angle was updated.
+
+    // part 1. get pointor of the points in a distance of less then "threshold".
+    double threshold = 3;
+    return_nearest_path_keypoint(threshold);
+
+    // part 2. get the max value for normalization.
+    double max_distance_RKP = 0;
+    double max_distance_KPD = 0;
+    for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
+    {
+        if(possible_candidate_target_keypoint[i].distance_RKP > max_distance_RKP)
+        {
+            max_distance_RKP = possible_candidate_target_keypoint[i].distance_RKP;
+        }
+        if(possible_candidate_target_keypoint[i].distance_KPD > max_distance_KPD)
+        {
+            max_distance_KPD = possible_candidate_target_keypoint[i].distance_RKP;
+        }
+    }
+
+    // part 3. compute note of the possible candidate.
+    vector<double> possible_candidate_target_keypoint_note;
+    double weight_distance_RKP = 1.5;
+    double weight_target_angle = 1.0;
+    double weight_distance_KPD = 0.3;
+    double weight_isReach      = 0.1;
+    for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
+    {
+        double candidate_note    = 0;
+        double note_distance_RKP = 1 - (possible_candidate_target_keypoint[i].distance_RKP/max_distance_RKP);
+        double note_target_angle = 1 - (possible_candidate_target_keypoint[i].target_angle/180);
+        double note_distance_KPD = 1 - (possible_candidate_target_keypoint[i].distance_RKP/max_distance_KPD);
+
+        candidate_note = weight_distance_RKP*note_distance_RKP + weight_target_angle*note_target_angle + weight_distance_KPD*note_distance_KPD;
+        candidate_note += weight_isReach*possible_candidate_target_keypoint[i].isReach;
+
+        possible_candidate_target_keypoint_note.push(candidate_note);
+    }
+
+    // part 4. select the best one.
+    double max_note = 0;
+    int index_candidate = 0;
+    for(int i = 0; i < possible_candidate_target_keypoint_note.size(); i++)
+    {
+        if(max_note < possible_candidate_target_keypoint_note[i])
+        {   
+            max_note = possible_candidate_target_keypoint_note[i];
+            index_candidate = i;
+        }
+    }
+
+    // part 5. add target point.
+    target_keypoint = &possible_candidate_target_keypoint[i];
+}
+
+void return_nearest_path_keypoint(double threshold)
+{
+    /*
+        DESCRIPTION: this function will run the keypoints_path vector
+            and send back the pointer of keypoints in a distance of less
+            then "threshold".
+    */
+
+    // clean this vector.
+    possible_candidate_target_keypoint.clear();
+
+    for(int i = 0; i < keypoints_path.size(); i++)
+    {
+        if(kp.distance_RKP < threshold) { possible_candidate_target_keypoint.push(&keypoints_path[i]); }
+    }
 }
 
 // THREAD.
@@ -1695,5 +1799,43 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     */
 
     // DRAW ROBOT POSE.
+    cv::Point draw_pose = Point(robot_position.Pixel.i, robot_position.Pixel.j);
+    cv::circle( copy_debug_visual_map,
+    draw_pose,
+    2,
+    cv::Scalar( 0, 0, 255 ),
+    cv::FILLED,
+    cv::LINE_8 );
+
     // DRAW ROBOT ORIENTATION VECTOR.
+    double distance_between_vector_point = 0.01;
+    double distance_total_vector         = 0.40;
+    int max_point_in_cell                = int(sqrt(pow((0.05 ), 2.0) + pow((0.05 ), 2.0)) / ;
+
+    for(int i = 0; i < distance_total_vector; i += distance_between_vector_point)
+    {   
+        double x   = cos(robot_position.euler.y*(180/M_PI)) * i;
+        double y   = sin(robot_position.euler.y*(180/M_PI)) * i;
+        Pair point = from_3DW_to_2DM2(x, y);
+
+        cv::Scalar pixel = copy_debug_visual_map.at<uchar>(point.i,point.j)
+        
+        // first modif so reset to white.
+        if(pixel[0] == 0 || pixel[0] == 50 || pixel[0] == 120 || pixel[0] == 200)
+        {
+            pixel = cv::Scalar(255,255,255)
+        }
+        else
+        {
+            // more it's down, more it's yellow.
+            pixel[0] -= int(255/max_point_in_cell);
+            if(pixel[0] < 0)
+            {
+                pixel[0] = 0;
+            }
+        }
+        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[0];
+        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[1];
+        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[2];
+    }
 }
