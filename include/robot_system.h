@@ -196,7 +196,7 @@ class Robot_system
         void add_lines(cv::Mat image);
         void add_intern_sensors(cv::Mat image);
         void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
-
+        void debug_add_path_keypoint(cv::Mat copy_debug_visual_map);
         // THREAD.
         void thread_LOCALISATION(int frequency);
         void thread_COMMANDE(int frequency);

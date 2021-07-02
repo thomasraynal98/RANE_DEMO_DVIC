@@ -1759,6 +1759,7 @@ void Robot_system::thread_ANALYSER(int frequency)
         // FOR VISUAL MAP DEBUG.
         cv::Mat copy_debug_visual_map = debug_visual_map.clone();
         debug_add_robot_pose(copy_debug_visual_map);
+        debug_add_path_keypoint(copy_debug_visual_map);
 
         cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
         cv::imshow("Debug visual map", copy_debug_visual_map);
@@ -1838,4 +1839,39 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
         copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[1];
         copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[2];
     }
+}
+
+void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
+{
+    /*
+        DESCRIPTION: draw all navigation information.
+            1 > keypoints in gray.
+            2 > keypoints candidate in bordeau + line RKP.
+            3 > target keypoints in red + line RPK.
+            4 > keypoints isReach in green.
+    */
+    
+    // 1 & 4
+    for(int i = 0; i < keypoints_path.size(); i++)
+    {
+        if(keypoints_path.isReach)
+        {
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, cv::Scalar(0,255,0),cv::CV_FILLED, 2,0);
+        }
+        else
+        {
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, cv::Scalar(120,120,120),cv::CV_FILLED, 2,0);
+        }
+    }
+
+    // 2 
+    for(int i = 0; i < possible_candidate_target_keypoint; i++)
+    {
+        cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, Scalar(19,0,76),cv::CV_FILLED, 2,0);
+        cv::line(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j), cv::Point(robot_position.coordinate.i,robot_position.coordinate.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    }
+
+    // 3
+    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint.coordinate.i,target_keypoint.coordinate.j),2, Scalar(0,0,255),cv::CV_FILLED, 2,0);
+    cv::line(copy_debug_visual_map, cv::Point(target_keypoint.coordinate.i,target_keypoint.coordinate.j), cv::Point(robot_position.coordinate.i,robot_position.coordinate.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
 }
