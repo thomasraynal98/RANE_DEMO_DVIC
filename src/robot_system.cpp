@@ -81,8 +81,8 @@ Robot_system::Robot_system(std::string val_id)
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
-    // thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
     // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
@@ -91,8 +91,8 @@ Robot_system::Robot_system(std::string val_id)
 
     thread_1_localisation.join();
     thread_2_commande.join();
-    // thread_3_listener_MICROA.join();
-    // thread_4_speaker_MICROA.join();
+    thread_3_listener_MICROA.join();
+    thread_4_speaker_MICROA.join();
     // thread_5_listener_MICROB.join();
     // thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
@@ -819,7 +819,7 @@ void Robot_system::select_target_keypoint()
             all variable
                 > 1. (YES) distance_RKP
                 > 2. (YES) target_angle
-                > 3. (NO) isReach  
+                > 3. (YES) isReach  
                 > 4. (NO) distance_KPD
         PS         : that can be a good feature to integrate the neural 
             network in this process. Or to integrate a variable that say
@@ -913,6 +913,35 @@ void Robot_system::cellIsReach()
     }
 }
 
+// FONCTION MOTOR.
+void Robot_system::compute_motor_commande()
+{
+    /*
+        DESCRIPTION: this function will compute the new commande for motor
+            but the command we will send in microcontroler thread if the
+            command is different of the last one.
+    */
+
+    // this variable is maybe already compute.
+    Pair kp_destination(target_keypoint->pixel.i, target_keypoint->pixel.j);
+    double angle_direction = compute_vector_RKP(kp_destination);
+    double current_angle   = robot_position.Euler.y;
+    double distance_deg    = 0;
+
+    if (current_angle - angle_direction) % 360 > 180:
+        distance_deg = 360 - ((current_angle - angle_direction) % 360)
+        if distance_deg > threshold_angle:
+            // Turn left.
+        else:
+            // Go forward.
+    else:
+        distance_deg = (current_angle - angle_direction) % 360
+        if distance_deg > threshold_angle:
+            // Turn right.
+        else:
+            // Go forward.
+}
+
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
@@ -951,6 +980,7 @@ void Robot_system::thread_LOCALISATION(int frequency)
                 kp.target_angle = compute_target_angle(kp.coordinate);
             }
         }
+
     }
 }
 
@@ -991,7 +1021,10 @@ void Robot_system::thread_COMMANDE(int frequency)
             Pair current_pose(robot_position.Pixel.i , robot_position.Pixel.j);
             if(aStarSearch(current_pose, destination_point))
             {
-
+                std::cout << "[GLOBAL_PATH:compute]\n";
+                select_target_keypoint();
+                cellIsReach();
+                robot_general_state = Robot_state::autonomous_nav;
             }
             else
             {
@@ -1007,6 +1040,19 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode is run after compute_nav mode if this one is successful
                     and a keypoints_path was computed. This goal is to found the current
                     target_keypoint and send command to all different motor.
+            */
+            
+            select_target_keypoint();
+            cellIsReach();
+            compute_motor_commande();
+
+        }
+        if(robot_general_state == Robot_state::manual)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow user to manualy control the robot from the
+                    interface.
             */
         }
     }

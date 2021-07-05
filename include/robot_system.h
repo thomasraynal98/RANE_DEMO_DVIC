@@ -38,7 +38,11 @@ class Robot_system
         std::string robot_general_state;
         double distance_between_keypoint;
 
-        // NAVIGATION VARIABLE.
+        // VARIABLE COMMANDE.
+        Robot_control control;
+        Robot_control control_last;
+
+        // VARIABLE NAVIGATION.
         cv::Mat map_weighted;
         Pose robot_position;
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
@@ -190,6 +194,9 @@ class Robot_system
         void select_target_keypoint();
         void return_nearest_path_keypoint(int threshold);
         void cellIsReach();
+
+        // FONCTION MOTOR.
+        void compute_motor_commande();
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

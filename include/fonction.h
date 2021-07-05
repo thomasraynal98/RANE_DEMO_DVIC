@@ -23,6 +23,20 @@ struct Pose
     } pixel;
 };
 
+struct Robot_control
+{
+    // Store all information for motor command in this type.
+    struct Motor
+    {
+        int m1L{0}, m2L{0}, m3L{0};
+        int m1R{0}, m2R{0}, m3R{0};
+    } motor;
+    struct Servo
+    {
+        int SL{0}, SR{0};
+    } servo;
+};
+
 bool test(bool is_cool);
 
 void from_quaternion_to_euler(Pose& current_pose);
