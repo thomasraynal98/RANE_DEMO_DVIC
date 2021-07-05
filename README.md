@@ -23,6 +23,7 @@ to add it to debug interface.
 validation distance and not in A* algorythme.
 * [ADD]       : automatic distance between KP en fonction of drift security distance.
 * [ADD]       : take speed of robot in compte to create validation speed.
+* [BUG]       : put some lock during distance_RKP and target_angle update.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

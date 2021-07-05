@@ -46,6 +46,7 @@ class Robot_system
         std::vector<Path_keypoint> keypoints_path;
         Path_keypoint* target_keypoint;
         vector<Path_keypoint*> possible_candidate_target_keypoint;
+        Pair destination_point;
 
         // VARIABLE FICHIER.
         std::string path_to_cpu_heat        = "/sys/class/thermal/thermal_zone1/temp";
@@ -172,7 +173,7 @@ class Robot_system
         void init_slam_sdk();
 
         // FONCTION NAVIGATION.
-        void aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest);
+        bool aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest);
         double calculateHValue(const Pair& src, const Pair& dest);
         bool isDestination(const Pair& position, const Pair& dest);
         bool isUnBlocked(cv::Mat grid, const Pair& point);
@@ -188,6 +189,7 @@ class Robot_system
         double compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext);
         void select_target_keypoint();
         void return_nearest_path_keypoint(int threshold);
+        void cellIsReach();
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);
@@ -197,6 +199,7 @@ class Robot_system
         void add_intern_sensors(cv::Mat image);
         void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
         void debug_add_path_keypoint(cv::Mat copy_debug_visual_map);
+        
         // THREAD.
         void thread_LOCALISATION(int frequency);
         void thread_COMMANDE(int frequency);
@@ -219,12 +222,16 @@ class Robot_state{
         inline static const std::string waiting        = "waiting";
         inline static const std::string manual         = "manual";
         inline static const std::string autonomous_nav = "autonomous_nav";
+        inline static const std::string compute_nav    = "compute_nav";
         inline static const std::string follow         = "follow";
         inline static const std::string home           = "home";
-        inline static const std::string compute_nav    = "compute_nav";
+        inline static const std::string approach       = "approach";
+        inline static const std::string charging       = "charging"
         inline static const std::string cleaning       = "cleaning";
         inline static const std::string patrolling     = "patrolling";
         inline static const std::string reset          = "reset";
         inline static const std::string debug          = "debug";
+        inline static const std::string warning        = "warning";
+
 };
 #endif

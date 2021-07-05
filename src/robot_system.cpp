@@ -366,31 +366,31 @@ catch (...)
 }
 
 // FONCTION NAVIGATION.
-void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
+bool Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 {
 	// If the source is out of range
 	if (!isValid(grid, src)) {
 		printf("Source is invalid\n");
-		return;
+		return false;
 	}
 
 	// If the destination is out of range
 	if (!isValid(grid, dest)) {
 		printf("Destination is invalid\n");
-		return;
+		return false;
 	}
 
 	// Either the source or the destination is blocked
 	if (!isUnBlocked(grid, src)
 		|| !isUnBlocked(grid, dest)) {
 		printf("Source or the destination is blocked\n");
-		return;
+		return false;
 	}
 
 	// If the destination cell is the same as source cell
 	if (isDestination(src, dest)) {
 		printf("We are already at the destination\n");
-		return;
+		return false;
 	}
 
 	// Create a closed list and initialise it to false which
@@ -494,7 +494,7 @@ void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 
                         from_global_path_to_keypoints_path(Path)
 
-						return;
+						return true;
 					}
 					// If the successor is already on the
 					// closed list or if it is blocked, then
@@ -540,6 +540,7 @@ void Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
 	// blockages)
 
 	printf("Failed to find the Destination Cell\n");
+    return false;
 }
 
 double Robot_system::calculateHValue(const Pair& src, const Pair& dest)
@@ -881,7 +882,7 @@ void Robot_system::select_target_keypoint()
     target_keypoint = &possible_candidate_target_keypoint[i];
 }
 
-void return_nearest_path_keypoint(double threshold)
+void Robot_system::return_nearest_path_keypoint(double threshold)
 {
     /*
         DESCRIPTION: this function will run the keypoints_path vector
@@ -895,6 +896,20 @@ void return_nearest_path_keypoint(double threshold)
     for(int i = 0; i < keypoints_path.size(); i++)
     {
         if(kp.distance_RKP < threshold) { possible_candidate_target_keypoint.push(&keypoints_path[i]); }
+    }
+}
+
+void Robot_system::cellIsReach()
+{
+    /*
+        DESCRIPTION: this function will check if we reach the current
+            target_keypoint. If we reach it, we change 'false' value
+            to 'true' in the keypoints_path vector.
+    */
+    
+    if(target_keypoint->distance_RKP < target_keypoint.distance_validation)
+    {
+        target_keypoint->isReach = true;
     }
 }
 
@@ -926,6 +941,16 @@ void Robot_system::thread_LOCALISATION(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-1]\n";
+
+        // Update distance_RKP and target_angle.
+        if(!possible_candidate_target_keypoint.empty())
+        {
+            for(Path_keypoint kp : keypoints_path)
+            {
+                kp.distance_RKP = compute_distance_RPK(kp.coordinate);
+                kp.target_angle = compute_target_angle(kp.coordinate);
+            }
+        }
     }
 }
 
@@ -955,19 +980,34 @@ void Robot_system::thread_COMMANDE(int frequency)
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
 
-        if(robot_general_state == Robot_state::follow)
+        if(robot_general_state == Robot_state::compute_nav)
         {   
-            // INFO : We are in follow mode.
-            //     1. Check if we have a global path.
-            if(true)
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when users send a new destination_point,
+                    so we need to compute the A* path planning algorythme.
+            */
+
+            Pair current_pose(robot_position.Pixel.i , robot_position.Pixel.j);
+            if(aStarSearch(current_pose, destination_point))
             {
 
             }
             else
             {
-                // We need to compute a global path.
+                // Problem on aStarSearch.
+                robot_general_state = Robot_state::warning;
             }
 
+        }
+        if(robot_general_state == Robot_state::autonomous_nav)
+        {   
+            /*
+                MODE DESCRIPTION:
+                    This mode is run after compute_nav mode if this one is successful
+                    and a keypoints_path was computed. This goal is to found the current
+                    target_keypoint and send command to all different motor.
+            */
         }
     }
 }
