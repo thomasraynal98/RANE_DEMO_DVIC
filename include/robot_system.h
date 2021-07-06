@@ -16,6 +16,7 @@
 #include <stack>
 #include <tuple>
 #include <utility>
+#include <vector>
 #include <slamcore/slamcore.hpp>
 
 #include <opencv2/opencv.hpp>
@@ -29,7 +30,7 @@
 #define ROBOT_SYSTEM_H
 
 class Robot_system
-{
+{  
     private:
         // VARIABLE.
         std::string robot_id;
@@ -49,7 +50,7 @@ class Robot_system
         int state_slamcore_tracking = 0;
         std::vector<Path_keypoint> keypoints_path;
         Path_keypoint* target_keypoint;
-        vector<Path_keypoint*> possible_candidate_target_keypoint;
+        std::vector<Path_keypoint*> possible_candidate_target_keypoint;
         Pair destination_point;
 
         // VARIABLE FICHIER.
@@ -114,56 +115,6 @@ class Robot_system
         double time_since_we_consider_thread_disconnect = 500;   // note: time in ms.
 
     public:
-        typedef std::pair<int, int> Pair;
-        typedef std::tuple<double, int, int> Tuple;
-        struct cell {
-            // Row and Column index of its parent
-            Pair parent;
-            // f = g + h
-            double f, g, h;
-            cell()
-                : parent()
-                , f(-1)
-                , g(-1)
-                , h(-1)
-            {
-            }
-        };
-        struct Path_keypoint {
-            /*
-                DESCRIPTION: this structure include all information
-                    of path between robot and destination.
-            */
-
-            // Pixel coordinate of path keypoint.
-            Pair coordinate;
-            // Do the robot reach this keypoint.
-            bool isReach;
-            // Distance from robot to keypoint.
-            double distance_RKP;
-            // Distance from current keypoint to destination. (Pas à vol d'oiseau)
-            double distance_KPD;
-            // Angle between robot orientation and robot to keypoint orientation.
-            double target_angle; 
-            // Angle between last KP, futur KP & with current KP to middle.
-            double validation_angle;
-            // True if this pixel is try_avoid area.
-            bool isTryAvoidArea;
-            // Distance to declare that robot reach point.
-            double distance_validation;
-            
-            // Constructor
-            Path_keypoint()
-                : coordinate()
-                , isReach(false)
-                , distance_RKP(-1)
-                , distance_KPD(-1)
-                , target_angle(-1)
-                , validation_angle(-1)
-                , isTryAvoidArea(false)
-                , distance_validation(-1)
-                {}
-        };
 
         // CONSTRUCTEUR.
         Robot_system(std::string val_id);
@@ -177,22 +128,22 @@ class Robot_system
         void init_slam_sdk();
 
         // FONCTION NAVIGATION.
-        bool aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest);
-        double calculateHValue(const Pair& src, const Pair& dest);
+        bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);
+        double calculateHValue(const Pair src, const Pair dest);
         bool isDestination(const Pair& position, const Pair& dest);
         bool isUnBlocked(cv::Mat grid, const Pair& point);
         bool isValid(cv::Mat grid, const Pair& point);
         void from_3DW_to_2DM();
         Pair from_3DW_to_2DM2(double x, double y);
         void from_global_path_to_keypoints_path(std::stack<Pair> Path);
-        double compute_distance_validation();
-        double compute_target_angle();
+        double compute_distance_validation(Path_keypoint current_keypoint);
+        double compute_target_angle(const Pair kp);
         double compute_vector_RKP(const Pair& kp);
         double compute_vector_RKP_2(const Pair& kpCurrent, const Pair& kp2);
         double compute_distance_RPK(const Pair& kp);
         double compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext);
         void select_target_keypoint();
-        void return_nearest_path_keypoint(int threshold);
+        void return_nearest_path_keypoint(double threshold);
         void cellIsReach();
 
         // FONCTION MOTOR.
@@ -233,7 +184,7 @@ class Robot_state{
         inline static const std::string follow         = "follow";
         inline static const std::string home           = "home";
         inline static const std::string approach       = "approach";
-        inline static const std::string charging       = "charging"
+        inline static const std::string charging       = "charging";
         inline static const std::string cleaning       = "cleaning";
         inline static const std::string patrolling     = "patrolling";
         inline static const std::string reset          = "reset";

@@ -26,6 +26,7 @@
 #include <memory>
 #include <stdexcept>
 #include <system_error>
+#include <vector>
 #include <thread>
 
 #include <opencv2/opencv.hpp>
@@ -366,7 +367,7 @@ catch (...)
 }
 
 // FONCTION NAVIGATION.
-bool Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
+bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 {
 	// If the source is out of range
 	if (!isValid(grid, src)) {
@@ -492,7 +493,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
                         } while (cellDetails[row][col].parent != next_node);
                         
 
-                        from_global_path_to_keypoints_path(Path)
+                        from_global_path_to_keypoints_path(Path);
 
 						return true;
 					}
@@ -543,7 +544,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, const Pair& src, const Pair& dest)
     return false;
 }
 
-double Robot_system::calculateHValue(const Pair& src, const Pair& dest)
+double Robot_system::calculateHValue(const Pair src, const Pair dest)
 {
 	// h is estimated with the two points distance formula
 	return sqrt(pow((src.first - dest.first), 2.0)
@@ -602,13 +603,13 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
     std::vector<double> vector_distances_from_destination;
     bool isDestination = true;
     double the_distance_from_destination = 0;
-    Pair previous_p = NULL;
+    Pair previous_p;
     while(!Path.empty())
     {
         Pair p = Path.top();
         Path.pop();
 
-        if(previous_p != NULL) {the_distance_from_destination += calculateHValue(previous_p, p);}
+        if(previous_p.first != NULL) {the_distance_from_destination += calculateHValue(previous_p, p);}
 
         vector_distances_from_destination.insert(vector_distances_from_destination.begin(), the_distance_from_destination);        
         vector_global_path.insert(vector_global_path.begin(), p);
@@ -620,7 +621,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
     bool first_keypoint = true;
 
     // Clear vector.
-    keypoints_path.clear()
+    keypoints_path.clear();
 
     // Select Keypoints and compute data.
     for(int i = 0; i < vector_global_path.size(); i++)
@@ -643,7 +644,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
                 current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
             
                 // push.
-                keypoints_path.push(current_keypoint);
+                keypoints_path.push_back(current_keypoint);
         }
         else
         {   
@@ -665,12 +666,12 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
                 current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
             
                 // push.
-                keypoints_path.push(current_keypoint);
+                keypoints_path.push_back(current_keypoint);
             }
             else
             {
                 // OK if point it's enought far from last kp. 
-                if(calculateHValue(last_add_keypoint, vector_global_path[i]) => distance_between_keypoint)
+                if(calculateHValue(keypoints_path.back().coordinate, vector_global_path[i]) >= distance_between_keypoint)
                 {
                     // fix variable.
                     current_keypoint.coordinate          = vector_global_path[i];
@@ -689,7 +690,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
                     current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
 
                     // push.
-                    keypoints_path.push(current_keypoint);
+                    keypoints_path.push_back(current_keypoint);
                 }
             }
         }
@@ -715,7 +716,7 @@ double Robot_system::compute_distance_validation(Path_keypoint kp)
     return value;
 }
 
-double Robot_system::compute_target_angle(Path_keypoint kp)
+double Robot_system::compute_target_angle(Pair kp)
 {
     /*
         DESCRIPTION: this function will compute and return the angle between the 
@@ -728,13 +729,13 @@ double Robot_system::compute_target_angle(Path_keypoint kp)
     double angle_ORIENTATION = robot_position.euler.y * (180/M_PI);
     double distance_deg      = -1;
 
-    if(((angle_ORIENTATION - angle_RKP) % 360) > 180)
+    if(((int(angle_ORIENTATION - angle_RKP)) % 360) > 180)
     {
-        distance_deg = 360 - ((angle_RKP - angle_ORIENTATION) % 360);
+        distance_deg = 360 - (int(angle_RKP - angle_ORIENTATION) % 360);
     }
     else
     {
-        distance_deg = (angle_RKP - angle_ORIENTATION) % 360
+        distance_deg = int(angle_RKP - angle_ORIENTATION) % 360;
     }
 
     return distance_deg;
@@ -795,13 +796,13 @@ double Robot_system::compute_validation_angle(const Pair& kpPrev, const Pair& kp
     double angle_RNEXT   = compute_vector_RKP_2(kpCurrent, kpNext);
     double distance_deg  = -1;
 
-    if(((angle_RPREV - angle_RNEXT) % 360) > 180)
+    if((int(angle_RPREV - angle_RNEXT) % 360) > 180)
     {
-        distance_deg = 360 - ((angle_RNEXT - angle_RPREV) % 360);
+        distance_deg = 360 - (int(angle_RNEXT - angle_RPREV) % 360);
     }
     else
     {
-        distance_deg = (angle_RNEXT - angle_RPREV) % 360
+        distance_deg = int(angle_RNEXT - angle_RPREV) % 360;
     }
 
     return distance_deg;
@@ -829,7 +830,7 @@ void Robot_system::select_target_keypoint()
     // MAKE SHURE distance_RPK and target_angle was updated.
 
     // part 1. get pointor of the points in a distance of less then "threshold".
-    double threshold = 3;
+    double threshold = 3.0;
     return_nearest_path_keypoint(threshold);
 
     // part 2. get the max value for normalization.
@@ -837,18 +838,18 @@ void Robot_system::select_target_keypoint()
     double max_distance_KPD = 0;
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
-        if(possible_candidate_target_keypoint[i].distance_RKP > max_distance_RKP)
+        if(possible_candidate_target_keypoint[i]->distance_RKP > max_distance_RKP)
         {
-            max_distance_RKP = possible_candidate_target_keypoint[i].distance_RKP;
+            max_distance_RKP = possible_candidate_target_keypoint[i]->distance_RKP;
         }
-        if(possible_candidate_target_keypoint[i].distance_KPD > max_distance_KPD)
+        if(possible_candidate_target_keypoint[i]->distance_KPD > max_distance_KPD)
         {
-            max_distance_KPD = possible_candidate_target_keypoint[i].distance_RKP;
+            max_distance_KPD = possible_candidate_target_keypoint[i]->distance_RKP;
         }
     }
 
     // part 3. compute note of the possible candidate.
-    vector<double> possible_candidate_target_keypoint_note;
+    std::vector<double> possible_candidate_target_keypoint_note;
     double weight_distance_RKP = 1.5;
     double weight_target_angle = 1.0;
     double weight_distance_KPD = 0.3;
@@ -856,14 +857,14 @@ void Robot_system::select_target_keypoint()
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
         double candidate_note    = 0;
-        double note_distance_RKP = 1 - (possible_candidate_target_keypoint[i].distance_RKP/max_distance_RKP);
-        double note_target_angle = 1 - (possible_candidate_target_keypoint[i].target_angle/180);
-        double note_distance_KPD = 1 - (possible_candidate_target_keypoint[i].distance_RKP/max_distance_KPD);
+        double note_distance_RKP = 1 - (possible_candidate_target_keypoint[i]->distance_RKP/max_distance_RKP);
+        double note_target_angle = 1 - (possible_candidate_target_keypoint[i]->target_angle/180);
+        double note_distance_KPD = 1 - (possible_candidate_target_keypoint[i]->distance_RKP/max_distance_KPD);
 
         candidate_note = weight_distance_RKP*note_distance_RKP + weight_target_angle*note_target_angle + weight_distance_KPD*note_distance_KPD;
-        candidate_note += weight_isReach*possible_candidate_target_keypoint[i].isReach;
+        candidate_note += weight_isReach*possible_candidate_target_keypoint[i]->isReach;
 
-        possible_candidate_target_keypoint_note.push(candidate_note);
+        possible_candidate_target_keypoint_note.push_back(candidate_note);
     }
 
     // part 4. select the best one.
@@ -879,7 +880,7 @@ void Robot_system::select_target_keypoint()
     }
 
     // part 5. add target point.
-    target_keypoint = &possible_candidate_target_keypoint[i];
+    target_keypoint = possible_candidate_target_keypoint[index_candidate];
 }
 
 void Robot_system::return_nearest_path_keypoint(double threshold)
@@ -895,7 +896,7 @@ void Robot_system::return_nearest_path_keypoint(double threshold)
 
     for(int i = 0; i < keypoints_path.size(); i++)
     {
-        if(kp.distance_RKP < threshold) { possible_candidate_target_keypoint.push(&keypoints_path[i]); }
+        if(keypoints_path[i].distance_RKP < threshold) { possible_candidate_target_keypoint.push_back(&keypoints_path[i]); }
     }
 }
 
@@ -907,7 +908,7 @@ void Robot_system::cellIsReach()
             to 'true' in the keypoints_path vector.
     */
     
-    if(target_keypoint->distance_RKP < target_keypoint.distance_validation)
+    if(target_keypoint->distance_RKP < target_keypoint->distance_validation)
     {
         target_keypoint->isReach = true;
     }
@@ -923,23 +924,36 @@ void Robot_system::compute_motor_commande()
     */
 
     // this variable is maybe already compute.
-    Pair kp_destination(target_keypoint->pixel.i, target_keypoint->pixel.j);
+    Pair kp_destination(target_keypoint->coordinate.first, target_keypoint->coordinate.second);
     double angle_direction = compute_vector_RKP(kp_destination);
-    double current_angle   = robot_position.Euler.y;
+    double current_angle   = robot_position.euler.y;
     double distance_deg    = 0;
+    double threshold_angle = 20;
 
-    if (current_angle - angle_direction) % 360 > 180:
-        distance_deg = 360 - ((current_angle - angle_direction) % 360)
-        if distance_deg > threshold_angle:
+    if(int(current_angle - angle_direction) % 360 > 180)
+    {
+        distance_deg = 360 - (int(current_angle - angle_direction) % 360);
+        if(distance_deg > threshold_angle)
+        {
             // Turn left.
-        else:
+        }
+        else
+        {
             // Go forward.
-    else:
-        distance_deg = (current_angle - angle_direction) % 360
-        if distance_deg > threshold_angle:
+        }
+    }
+    else
+    {
+        distance_deg = int(current_angle - angle_direction) % 360;
+        if(distance_deg > threshold_angle)
+        {
             // Turn right.
-        else:
+        }
+        else
+        {
             // Go forward.
+        }
+    }
 }
 
 // THREAD.
@@ -1018,8 +1032,8 @@ void Robot_system::thread_COMMANDE(int frequency)
                     so we need to compute the A* path planning algorythme.
             */
 
-            Pair current_pose(robot_position.Pixel.i , robot_position.Pixel.j);
-            if(aStarSearch(current_pose, destination_point))
+            Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
+            if(aStarSearch(map_weighted, current_pose, destination_point))
             {
                 std::cout << "[GLOBAL_PATH:compute]\n";
                 select_target_keypoint();
@@ -1031,7 +1045,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                 // Problem on aStarSearch.
                 robot_general_state = Robot_state::warning;
             }
-
         }
         if(robot_general_state == Robot_state::autonomous_nav)
         {   
@@ -1886,7 +1899,8 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     */
 
     // DRAW ROBOT POSE.
-    cv::Point draw_pose = Point(robot_position.Pixel.i, robot_position.Pixel.j);
+
+    cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
     cv::circle( copy_debug_visual_map,
     draw_pose,
     2,
@@ -1897,7 +1911,7 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     // DRAW ROBOT ORIENTATION VECTOR.
     double distance_between_vector_point = 0.01;
     double distance_total_vector         = 0.40;
-    int max_point_in_cell                = int(sqrt(pow((0.05 ), 2.0) + pow((0.05 ), 2.0)) / ;
+    int max_point_in_cell                = int(sqrt(pow((0.05 ), 2.0) + pow((0.05 ), 2.0)));
 
     for(int i = 0; i < distance_total_vector; i += distance_between_vector_point)
     {   
@@ -1905,12 +1919,12 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
         double y   = sin(robot_position.euler.y*(180/M_PI)) * i;
         Pair point = from_3DW_to_2DM2(x, y);
 
-        cv::Scalar pixel = copy_debug_visual_map.at<uchar>(point.i,point.j)
+        cv::Scalar pixel = copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second);
         
         // first modif so reset to white.
         if(pixel[0] == 0 || pixel[0] == 50 || pixel[0] == 120 || pixel[0] == 200)
         {
-            pixel = cv::Scalar(255,255,255)
+            pixel = cv::Scalar(255,255,255);
         }
         else
         {
@@ -1921,9 +1935,9 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
                 pixel[0] = 0;
             }
         }
-        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[0];
-        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[1];
-        copy_debug_visual_map.at<uchar>(point.i,point.j)[0] = pixel[2];
+        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[0] = pixel[0];
+        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[1] = pixel[1];
+        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[2] = pixel[2];
     }
 }
 
@@ -1940,24 +1954,24 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
     // 1 & 4
     for(int i = 0; i < keypoints_path.size(); i++)
     {
-        if(keypoints_path.isReach)
+        if(keypoints_path[i].isReach)
         {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, cv::Scalar(0,255,0),cv::CV_FILLED, 2,0);
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(0,255,0), cv::FILLED, 2, 0);
         }
         else
         {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, cv::Scalar(120,120,120),cv::CV_FILLED, 2,0);
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(120,120,120), cv::FILLED, 2, 0);
         }
     }
 
     // 2 
-    for(int i = 0; i < possible_candidate_target_keypoint; i++)
+    for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
-        cv::circle(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j),2, Scalar(19,0,76),cv::CV_FILLED, 2,0);
-        cv::line(copy_debug_visual_map, cv::Point(keypoints_path.coordinate.i,keypoints_path.coordinate.j), cv::Point(robot_position.coordinate.i,robot_position.coordinate.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+        cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(19,0,76), cv::FILLED, 2,0);
+        cv::line(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
     }
 
     // 3
-    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint.coordinate.i,target_keypoint.coordinate.j),2, Scalar(0,0,255),cv::CV_FILLED, 2,0);
-    cv::line(copy_debug_visual_map, cv::Point(target_keypoint.coordinate.i,target_keypoint.coordinate.j), cv::Point(robot_position.coordinate.i,robot_position.coordinate.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),2, cv::Scalar(0,0,255), cv::FILLED, 2,0);
+    cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
 }

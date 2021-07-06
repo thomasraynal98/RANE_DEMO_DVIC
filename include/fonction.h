@@ -1,6 +1,9 @@
 #ifndef FONCTION_H
 #define FONCTION_H
 
+typedef std::pair<int, int> Pair;
+typedef std::tuple<double, int, int> Tuple;
+
 struct Pose 
 {
     // Store all position data in multi type.
@@ -35,6 +38,56 @@ struct Robot_control
     {
         int SL{0}, SR{0};
     } servo;
+};
+
+struct Path_keypoint {
+    /*
+        DESCRIPTION: this structure include all information
+            of path between robot and destination.
+    */
+
+    // Pixel coordinate of path keypoint.
+    Pair coordinate;
+    // Do the robot reach this keypoint.
+    bool isReach;
+    // Distance from robot to keypoint.
+    double distance_RKP;
+    // Distance from current keypoint to destination. (Pas à vol d'oiseau)
+    double distance_KPD;
+    // Angle between robot orientation and robot to keypoint orientation.
+    double target_angle; 
+    // Angle between last KP, futur KP & with current KP to middle.
+    double validation_angle;
+    // True if this pixel is try_avoid area.
+    bool isTryAvoidArea;
+    // Distance to declare that robot reach point.
+    double distance_validation;
+    
+    // Constructor
+    Path_keypoint()
+        : coordinate()
+        , isReach(false)
+        , distance_RKP(-1)
+        , distance_KPD(-1)
+        , target_angle(-1)
+        , validation_angle(-1)
+        , isTryAvoidArea(false)
+        , distance_validation(-1)
+        {}
+};
+
+struct cell {
+    // Row and Column index of its parent
+    Pair parent;
+    // f = g + h
+    double f, g, h;
+    cell()
+        : parent()
+        , f(-1)
+        , g(-1)
+        , h(-1)
+    {
+    }
 };
 
 bool test(bool is_cool);

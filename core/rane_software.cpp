@@ -3,11 +3,11 @@
 #include <ratio>
 #include <chrono>
 
-#include<iostream>
-#include<algorithm>
-#include<fstream>
-#include<iomanip>
-#include<chrono>
+#include <iostream>
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <chrono>
 #include <ctime>
 #include <sstream>
 #include "../include/fonction.h"
