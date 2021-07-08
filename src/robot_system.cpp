@@ -28,6 +28,7 @@
 #include <system_error>
 #include <vector>
 #include <thread>
+#include <mutex>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -60,6 +61,8 @@ Robot_system::Robot_system(std::string val_id)
 
     // initialisation of debug map.
     debug_init_debug_map();
+    robot_position.pixel.i = 85;
+    robot_position.pixel.j = 200;
 
     // initialisation microcontroler.
     LibSerial::SerialPort* _serial_port_controle_A;
@@ -82,26 +85,29 @@ Robot_system::Robot_system(std::string val_id)
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
-    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    // thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
     // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
-    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
+    // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
+    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
+        
+    // init completed and join thread.
+    robot_general_state       = Robot_state().waiting;
+
+    debug_message_server();
 
     thread_1_localisation.join();
     thread_2_commande.join();
-    thread_3_listener_MICROA.join();
-    thread_4_speaker_MICROA.join();
+    // thread_3_listener_MICROA.join();
+    // thread_4_speaker_MICROA.join();
     // thread_5_listener_MICROB.join();
     // thread_6_speaker_MICROB.join();
-    thread_7_listener_SERVER.join();
-    thread_8_speaker_SERVER.join();
+    // thread_7_listener_SERVER.join();
+    // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 
-    // end of initialisation.
-    robot_general_state       = Robot_state().waiting;
 }
 
 Robot_state::Robot_state()
@@ -325,6 +331,8 @@ try
       robot_position.orientation.z = poseObj->getRotation().z();
       robot_position.orientation.w = poseObj->getRotation().w();
       from_quaternion_to_euler(robot_position);
+      robot_position.pixel.i = 85;
+      robot_position.pixel.j = 200;
     });
 
     // TODO: [BUG] resolve this problem.
@@ -374,7 +382,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 		printf("Source is invalid\n");
 		return false;
 	}
-
+    
 	// If the destination is out of range
 	if (!isValid(grid, dest)) {
 		printf("Destination is invalid\n");
@@ -382,9 +390,12 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 	}
 
 	// Either the source or the destination is blocked
-	if (!isUnBlocked(grid, src)
-		|| !isUnBlocked(grid, dest)) {
-		printf("Source or the destination is blocked\n");
+	if (!isUnBlocked(grid, src)) {
+		printf("Source is blocked\n");
+		return false;
+	}
+	if (!isUnBlocked(grid, dest)) {
+		printf("Dest is blocked\n");
 		return false;
 	}
 
@@ -559,13 +570,15 @@ bool Robot_system::isDestination(const Pair& position, const Pair& dest)
 bool Robot_system::isUnBlocked(cv::Mat grid, const Pair& point)
 {
 	// Returns true if the cell is not blocked else false
-	return isValid(grid, point) && ((grid.at<uchar>(point.first,point.second) == 255) || (grid.at<uchar>(point.first,point.second) == 200));
+    // std::cout << ">> " << point.first << ", " << point.second << "\n";
+    // std::cout << ">> " << int(grid.at<uchar>(point.second, point.first)) << "\n";
+	return isValid(grid, point) && ((grid.at<uchar>(point.second, point.first) == 255) || (grid.at<uchar>(point.second,point.first) == 200));
 }
 
 bool Robot_system::isValid(cv::Mat grid, const Pair& point)
 { 
     // Returns true if row number and column number is in range.
-    return (point.first >= 0) && (point.first < grid.rows) && (point.second >= 0) && (point.second < grid.cols);
+    return (point.first >= 0) && (point.first < grid.size[0]) && (point.second >= 0) && (point.second < grid.size[1]);
 }
 
 void Robot_system::from_3DW_to_2DM()
@@ -574,6 +587,10 @@ void Robot_system::from_3DW_to_2DM()
         DESCRIPTION: this function will convert the 3D world pose into
             the 2D map pixel coordinate.
     */
+
+    //DEBUG.
+    robot_position.pixel.i = 85;
+    robot_position.pixel.j = 200;
 }
 
 Pair Robot_system::from_3DW_to_2DM2(double x, double y)
@@ -584,7 +601,9 @@ Pair Robot_system::from_3DW_to_2DM2(double x, double y)
             Param is in world coordinate system.
     */
 
-    Pair point_pixel;
+    Pair point_pixel(200,200);
+    robot_position.pixel.i = 85;
+    robot_position.pixel.j = 200;
 
     return point_pixel;
 }
@@ -603,16 +622,18 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
     std::vector<double> vector_distances_from_destination;
     bool isDestination = true;
     double the_distance_from_destination = 0;
-    Pair previous_p;
+    Pair previous_p = Path.top();
     while(!Path.empty())
     {
         Pair p = Path.top();
         Path.pop();
 
-        if(previous_p.first != NULL) {the_distance_from_destination += calculateHValue(previous_p, p);}
+        the_distance_from_destination += calculateHValue(previous_p, p)* 0.05;
 
-        vector_distances_from_destination.insert(vector_distances_from_destination.begin(), the_distance_from_destination);        
-        vector_global_path.insert(vector_global_path.begin(), p);
+        // vector_distances_from_destination.insert(vector_distances_from_destination.begin(), the_distance_from_destination);        
+        // vector_global_path.insert(vector_global_path.begin(), p);
+        vector_distances_from_destination.push_back(the_distance_from_destination); 
+        vector_global_path.push_back(p);
         
         previous_p = p;
     }
@@ -631,20 +652,20 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
         // OK if it's the last point.
         if(i == vector_global_path.size()-1)
         {
-                // fix variable.
-                current_keypoint.coordinate          = vector_global_path[i];
-                current_keypoint.distance_KPD        = 0;
-                current_keypoint.validation_angle    = 100; // for validation.
-                current_keypoint.isTryAvoidArea      = 200; // for validation.
-                current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
-                
-                // non fix variable.
-                current_keypoint.isReach             = false;
-                current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
-                current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+            // fix variable.
+            current_keypoint.coordinate          = vector_global_path[i];
+            current_keypoint.distance_KPD        = 0;
+            current_keypoint.validation_angle    = 100; // for validation.
+            current_keypoint.isTryAvoidArea      = 200; // for validation.
+            current_keypoint.distance_validation = compute_distance_validation(current_keypoint);
             
-                // push.
-                keypoints_path.push_back(current_keypoint);
+            // non fix variable.
+            current_keypoint.isReach             = false;
+            current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
+            current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate)*0.05;
+        
+            // push.
+            keypoints_path.push_back(current_keypoint);
         }
         else
         {   
@@ -663,7 +684,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
                 // non fix variable.
                 current_keypoint.isReach             = true;
                 current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
-                current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+                current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate)*0.05;
             
                 // push.
                 keypoints_path.push_back(current_keypoint);
@@ -671,7 +692,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
             else
             {
                 // OK if point it's enought far from last kp. 
-                if(calculateHValue(keypoints_path.back().coordinate, vector_global_path[i]) >= distance_between_keypoint)
+                if(calculateHValue(keypoints_path.back().coordinate, vector_global_path[i])*0.05 >= distance_between_keypoint)
                 {
                     // fix variable.
                     current_keypoint.coordinate          = vector_global_path[i];
@@ -687,7 +708,7 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
                     // non fix variable.
                     current_keypoint.isReach             = false;
                     current_keypoint.target_angle        = compute_target_angle(current_keypoint.coordinate);
-                    current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate);
+                    current_keypoint.distance_RKP        = compute_distance_RPK(current_keypoint.coordinate)*0.05;
 
                     // push.
                     keypoints_path.push_back(current_keypoint);
@@ -990,7 +1011,7 @@ void Robot_system::thread_LOCALISATION(int frequency)
         {
             for(Path_keypoint kp : keypoints_path)
             {
-                kp.distance_RKP = compute_distance_RPK(kp.coordinate);
+                kp.distance_RKP = compute_distance_RPK(kp.coordinate)*0.05;
                 kp.target_angle = compute_target_angle(kp.coordinate);
             }
         }
@@ -1024,7 +1045,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
 
-        if(robot_general_state == Robot_state::compute_nav)
+        if(robot_general_state == Robot_state().compute_nav)
         {   
             /*
                 MODE DESCRIPTION:
@@ -1033,20 +1054,25 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
+            destination_point.first = 245;
+            destination_point.second = 280;
+
+            /*TODO: block robot during this process.*/
+
             if(aStarSearch(map_weighted, current_pose, destination_point))
             {
                 std::cout << "[GLOBAL_PATH:compute]\n";
                 select_target_keypoint();
                 cellIsReach();
-                robot_general_state = Robot_state::autonomous_nav;
+                robot_general_state = Robot_state().autonomous_nav;
             }
             else
             {
                 // Problem on aStarSearch.
-                robot_general_state = Robot_state::warning;
+                robot_general_state = Robot_state().warning;
             }
         }
-        if(robot_general_state == Robot_state::autonomous_nav)
+        if(robot_general_state == Robot_state().autonomous_nav)
         {   
             /*
                 MODE DESCRIPTION:
@@ -1060,7 +1086,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             compute_motor_commande();
 
         }
-        if(robot_general_state == Robot_state::manual)
+        if(robot_general_state == Robot_state().manual)
         {
             /*
                 MODE DESCRIPTION:
@@ -1853,17 +1879,18 @@ void Robot_system::thread_ANALYSER(int frequency)
 
 
         cv::imshow("Interface analyse vision.", affichage);
-        char c=(char)cv::waitKey(25);
+        // char c=(char)cv::waitKey(25);
 
         // FOR VISUAL MAP DEBUG.
         cv::Mat copy_debug_visual_map = debug_visual_map.clone();
+
         debug_add_robot_pose(copy_debug_visual_map);
         debug_add_path_keypoint(copy_debug_visual_map);
 
         cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
         cv::imshow("Debug visual map", copy_debug_visual_map);
+        
         char d=(char)cv::waitKey(25);
-
 	    if(d==27)
 	      break;
     }
@@ -1878,7 +1905,7 @@ void Robot_system::debug_message_server()
             debug process.
         INFO       : this function will not be use at the end.
     */
-    std::cout << "debug";
+    robot_general_state = Robot_state().compute_nav;
 }
 
 void Robot_system::debug_init_debug_map()
@@ -1899,8 +1926,8 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     */
 
     // DRAW ROBOT POSE.
-
-    cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
+    cv::Point draw_pose = cv::Point(85, 200);
+    // cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
     cv::circle( copy_debug_visual_map,
     draw_pose,
     2,
@@ -1908,37 +1935,46 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     cv::FILLED,
     cv::LINE_8 );
 
+    cv::Point draw_pose2 = cv::Point(245, 280);
+    // cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
+    cv::circle( copy_debug_visual_map,
+    draw_pose2,
+    2,
+    cv::Scalar( 255, 0, 255 ),
+    cv::FILLED,
+    cv::LINE_8 );
+
     // DRAW ROBOT ORIENTATION VECTOR.
-    double distance_between_vector_point = 0.01;
-    double distance_total_vector         = 0.40;
-    int max_point_in_cell                = int(sqrt(pow((0.05 ), 2.0) + pow((0.05 ), 2.0)));
+    // double distance_between_vector_point = 0.01;
+    // double distance_total_vector         = 0.40;
+    // int max_point_in_cell                = int(distance_total_vector/sqrt(pow((0.05), 2.0) + pow((0.05), 2.0)));
 
-    for(int i = 0; i < distance_total_vector; i += distance_between_vector_point)
-    {   
-        double x   = cos(robot_position.euler.y*(180/M_PI)) * i;
-        double y   = sin(robot_position.euler.y*(180/M_PI)) * i;
-        Pair point = from_3DW_to_2DM2(x, y);
+    // for(double i = 0; i < distance_total_vector; i += distance_between_vector_point)
+    // {   
+    //     double x   = cos(robot_position.euler.y*(180/M_PI)) * i;
+    //     double y   = sin(robot_position.euler.y*(180/M_PI)) * i;
+    //     Pair point = from_3DW_to_2DM2(x, y);
 
-        cv::Scalar pixel = copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second);
-        
-        // first modif so reset to white.
-        if(pixel[0] == 0 || pixel[0] == 50 || pixel[0] == 120 || pixel[0] == 200)
-        {
-            pixel = cv::Scalar(255,255,255);
-        }
-        else
-        {
-            // more it's down, more it's yellow.
-            pixel[0] -= int(255/max_point_in_cell);
-            if(pixel[0] < 0)
-            {
-                pixel[0] = 0;
-            }
-        }
-        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[0] = pixel[0];
-        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[1] = pixel[1];
-        copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[2] = pixel[2];
-    }
+    //     cv::Scalar pixel = copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second);
+
+    //     // first modif so reset to white.
+    //     if(pixel[0] == 0 || pixel[0] == 50 || pixel[0] == 120 || pixel[0] == 200)
+    //     {
+    //         pixel = cv::Scalar(255,255,255);
+    //     }
+    //     else
+    //     {
+    //         // more it's down, more it's yellow.
+    //         pixel[0] -= int(255/max_point_in_cell);
+    //         if(pixel[0] < 0)
+    //         {
+    //             pixel[0] = 0;
+    //         }
+    //     }
+    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[0] = pixel[0];
+    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[1] = pixel[1];
+    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[2] = pixel[2];
+    // }
 }
 
 void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
@@ -1956,22 +1992,22 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
     {
         if(keypoints_path[i].isReach)
         {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(0,255,0), cv::FILLED, 2, 0);
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(0,255,0), cv::FILLED, 1, 0);
         }
         else
         {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(120,120,120), cv::FILLED, 2, 0);
+            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(120,120,120), cv::FILLED, 1, 0);
         }
     }
 
     // 2 
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
-        cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),2, cv::Scalar(19,0,76), cv::FILLED, 2,0);
-        cv::line(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+        cv::circle(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second),1, cv::Scalar(19,0,76), cv::FILLED, 1,0);
+        // cv::line(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(19,0,76), 1, cv::LINE_8);
     }
 
     // 3
-    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),2, cv::Scalar(0,0,255), cv::FILLED, 2,0);
-    cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),1, cv::Scalar(255,0,0), cv::FILLED, 1,0);
+    // cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
 }

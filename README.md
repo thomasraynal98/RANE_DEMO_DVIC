@@ -10,8 +10,8 @@ http://libserial.sourceforge.net/doxygen/class_serial_port.html#a6d063c5984b774b
 https://libserial.readthedocs.io/en/latest/tutorial.html
 
 ## FEATURES AND BUGS
-* [BUG]       : Fix bug 2 ports deconnexion.
-* [ADD]       : Add all variable (voltage, etc...).
+* [BUG]       : fix bug 2 ports deconnexion.
+* [ADD]       : add all variable (voltage, etc...).
 * [BUG]       : thread pass to stop when port is disconnect.
 * [BUG]       : thread frequency problem TH3/TH5.
 * [BUG]       : the cpu load is not very accurate.
@@ -24,6 +24,7 @@ validation distance and not in A* algorythme.
 * [ADD]       : automatic distance between KP en fonction of drift security distance.
 * [ADD]       : take speed of robot in compte to create validation speed.
 * [BUG]       : put some lock during distance_RKP and target_angle update.
+* [BUG]       : bug of path planning when destination is very far.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

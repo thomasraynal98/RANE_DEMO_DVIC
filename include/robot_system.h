@@ -17,6 +17,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <mutex>
 #include <slamcore/slamcore.hpp>
 
 #include <opencv2/opencv.hpp>
@@ -37,20 +38,20 @@ class Robot_system
         double battery_voltage;
         double robot_speed;
         std::string robot_general_state;
-        double distance_between_keypoint;
+        double distance_between_keypoint = 0.2;
 
         // VARIABLE COMMANDE.
         Robot_control control;
         Robot_control control_last;
 
         // VARIABLE NAVIGATION.
+        int state_slamcore_tracking = 0;
         cv::Mat map_weighted;
         Pose robot_position;
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
-        int state_slamcore_tracking = 0;
         std::vector<Path_keypoint> keypoints_path;
-        Path_keypoint* target_keypoint;
         std::vector<Path_keypoint*> possible_candidate_target_keypoint;
+        Path_keypoint* target_keypoint;
         Pair destination_point;
 
         // VARIABLE FICHIER.
@@ -176,20 +177,20 @@ class Robot_state{
     public:
         // ALL STATE.
         Robot_state();
-        inline static const std::string initialisation = "initialisation";
-        inline static const std::string waiting        = "waiting";
-        inline static const std::string manual         = "manual";
-        inline static const std::string autonomous_nav = "autonomous_nav";
-        inline static const std::string compute_nav    = "compute_nav";
-        inline static const std::string follow         = "follow";
-        inline static const std::string home           = "home";
-        inline static const std::string approach       = "approach";
-        inline static const std::string charging       = "charging";
-        inline static const std::string cleaning       = "cleaning";
-        inline static const std::string patrolling     = "patrolling";
-        inline static const std::string reset          = "reset";
-        inline static const std::string debug          = "debug";
-        inline static const std::string warning        = "warning";
+        inline static std::string initialisation = "initialisation";
+        inline static std::string waiting        = "waiting";
+        inline static std::string manual         = "manual";
+        inline static std::string autonomous_nav = "autonomous_nav";
+        inline static std::string compute_nav    = "compute_nav";
+        inline static std::string follow         = "follow";
+        inline static std::string home           = "home";
+        inline static std::string approach       = "approach";
+        inline static std::string charging       = "charging";
+        inline static std::string cleaning       = "cleaning";
+        inline static std::string patrolling     = "patrolling";
+        inline static std::string reset          = "reset";
+        inline static std::string debug          = "debug";
+        inline static std::string warning        = "warning";
 
 };
 #endif
