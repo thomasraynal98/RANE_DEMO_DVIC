@@ -39,10 +39,11 @@ class Robot_system
         double robot_speed;
         std::string robot_general_state;
         double distance_between_keypoint = 0.2;
+        Robot_sensor robot_sensor_data;
 
         // VARIABLE COMMANDE.
-        Robot_control control;
-        Robot_control control_last;
+        Robot_control robot_control;
+        Robot_control robot_control_last_send;
 
         // VARIABLE NAVIGATION.
         int state_slamcore_tracking = 0;
@@ -67,13 +68,14 @@ class Robot_system
         LibSerial::SerialPort** __serial_port_sensor_B;
         std::string port_A_name;                                 // note: this is the string name of the serial port.
         std::string port_B_name;
-        std::string controler_A_pong = "1/A";                    // note: the pong message is the answer from microcontroler after get "1/X" ping.
-        std::string controler_B_pong = "1/B";
+        std::string controler_A_pong = "0/A";                    // note: the pong message is the answer from microcontroler after get "1/X" ping.
+        std::string controler_B_pong = "0/B";
         int state_A_controler = 0;  
         int state_B_controler = 0;
 
         // VARIABLE DEBUG.
         cv::Mat debug_visual_map;
+        cv::Mat debug_sensor;
 
         // VARIABLE INTERNE SENSOR.
         int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
@@ -158,6 +160,10 @@ class Robot_system
         void add_intern_sensors(cv::Mat image);
         void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
         void debug_add_path_keypoint(cv::Mat copy_debug_visual_map);
+        void add_lines_sensor(cv::Mat image);
+        void add_ultrasonic(cv::Mat image);
+        cv::Scalar get_color_ultrasonic(double value);
+        void add_energy_sensor(cv::Mat image);
         
         // THREAD.
         void thread_LOCALISATION(int frequency);
@@ -171,6 +177,7 @@ class Robot_system
         // FONCTION DEBUG.
         void debug_message_server();
         void debug_init_debug_map();
+        void debug_init_sensor();
 };
 
 class Robot_state{

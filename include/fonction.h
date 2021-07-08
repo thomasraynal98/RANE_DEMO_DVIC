@@ -43,6 +43,101 @@ struct Robot_control
     {
         int SL{0}, SR{0};
     } servo;
+
+    std::string message_microcontrolerA{""};
+    std::string message_microcontrolerB{""};
+
+    bool operator==(Robot_control& ctr2)
+    {
+        return motor.m1L == ctr2.motor.m1L && motor.m2L == ctr2.motor.m2L &&\
+               motor.m3L == ctr2.motor.m3L && motor.m1R == ctr2.motor.m1R &&\
+               motor.m2R == ctr2.motor.m2R && motor.m3R == ctr2.motor.m3R &&\
+               direction.m1L_s == ctr2.direction.m1L_s && direction.m2L_s == ctr2.direction.m2L_s &&\
+               direction.m3L_s == ctr2.direction.m3L_s && direction.m1R_s == ctr2.direction.m1R_s &&\
+               direction.m2R_s == ctr2.direction.m2R_s && direction.m3R_s == ctr2.direction.m3R_s;
+    }
+
+    void operator=(Robot_control& ctr2)
+    {
+        motor.m1L = ctr2.motor.m1L;
+        motor.m2L = ctr2.motor.m2L;
+        motor.m3L = ctr2.motor.m3L;
+        motor.m1R = ctr2.motor.m1R;
+        motor.m2R = ctr2.motor.m2R;
+        motor.m3R = ctr2.motor.m3R;
+
+        direction.m1L_s = ctr2.direction.m1L_s;
+        direction.m2L_s = ctr2.direction.m2L_s;
+        direction.m3L_s = ctr2.direction.m3L_s;
+        direction.m1R_s = ctr2.direction.m1R_s;
+        direction.m2R_s = ctr2.direction.m2R_s;
+        direction.m3R_s = ctr2.direction.m3R_s;
+    }
+
+    void compute_message_microA()
+    {
+        /*
+            DESCRIPTION  : Send a message to the controler if it's different.
+            INPUT        :
+                * current_command    = Type(Np.array)     this is the previous message sent to the micro-controller.
+                * new_command        = Type(Np.array)     this is the new command to send.
+                * ser                = Type(Serial)       this is the serial object.
+        */
+
+        std::string message_string;
+
+        message_string  = "1/";
+        message_string += std::to_string(direction.m1L_s) + "/" + std::to_string(motor.m1L) + "/";
+        message_string += std::to_string(direction.m2L_s) + "/" + std::to_string(motor.m2L) + "/";
+        message_string += std::to_string(direction.m3L_s) + "/" + std::to_string(motor.m3L) + "/";
+        message_string += std::to_string(direction.m1R_s) + "/" + std::to_string(motor.m1R) + "/";
+        message_string += std::to_string(direction.m2R_s) + "/" + std::to_string(motor.m2R) + "/";
+        message_string += std::to_string(direction.m3R_s) + "/" + std::to_string(motor.m3R);
+        message_microcontrolerA = message_string;
+    }
+
+    void compute_message_microB()
+    {
+        /*
+            DESCRIPTION  : Send a message to the controler if it's different.
+            INPUT        :
+                * current_command    = Type(Np.array)     this is the previous message sent to the micro-controller.
+                * new_command        = Type(Np.array)     this is the new command to send.
+                * ser                = Type(Serial)       this is the serial object.
+        */
+
+        std::string message_string;
+
+        message_string  = "1/";
+        message_string += std::to_string(servo.SL) + "/" + std::to_string(servo.SR);
+        message_microcontrolerB = message_string;
+    }
+
+    void change_servo(Robot_control new_command_send)
+    {
+        servo.SL = new_command_send.servo.SL;
+        servo.SR = new_command_send.servo.SR;
+    }
+    
+    bool isServo_different(Robot_control new_command_send)
+    {
+        return servo.SL != new_command_send.servo.SL || \
+               servo.SR != new_command_send.servo.SR;
+    }
+};
+
+struct Robot_sensor
+{
+    struct Ultrasonic
+    {
+        double ulF0{0}, ulF1{0}, ulF2{0}, ulF3{0};
+        double ulB0{0}, ulB1{0}, ulB2{0};
+    } ultrasonic;
+    struct Energy
+    {
+        double voltage{0};
+        double current{0};
+    } energy;
 };
 
 struct Path_keypoint {

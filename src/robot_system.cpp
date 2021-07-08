@@ -49,7 +49,7 @@ Robot_system::Robot_system(std::string val_id)
     fan_power                 = -1;
 
     // initialisation SLAM.
-    init_slam_sdk();
+    // init_slam_sdk();
 
     // initialisation map and points (TODO: in the future, no points will be in computer
     // only send from server).
@@ -64,6 +64,9 @@ Robot_system::Robot_system(std::string val_id)
     robot_position.pixel.i = 85;
     robot_position.pixel.j = 200;
 
+    // initialisation of debug sensor.
+    debug_init_sensor();
+
     // initialisation microcontroler.
     LibSerial::SerialPort* _serial_port_controle_A;
     LibSerial::SerialPort* _serial_port_sensor_B;
@@ -71,6 +74,23 @@ Robot_system::Robot_system(std::string val_id)
     __serial_port_sensor_B    = &_serial_port_sensor_B;
     *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
     *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
+
+    //TODO: BRUTE
+    bool var = false;
+    robot_control.direction.m1L_s = var;
+    robot_control.motor.m1L = 255;
+    robot_control.direction.m2L_s = var;
+    robot_control.motor.m2L = 255;
+    robot_control.direction.m3L_s = var;
+    robot_control.motor.m3L = 255;
+    robot_control.direction.m1R_s = var;
+    robot_control.motor.m1R = 255;
+    robot_control.direction.m2R_s = var;
+    robot_control.motor.m2R = 255;
+    robot_control.direction.m3R_s = var;
+    robot_control.motor.m3R = 255;
+    robot_control.servo.SL = 255;
+    robot_control.servo.SR = 255;
 
     // initialisation all thread.
     thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
@@ -83,12 +103,12 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
-    // thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  2, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  2,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
@@ -98,12 +118,12 @@ Robot_system::Robot_system(std::string val_id)
 
     debug_message_server();
 
-    thread_1_localisation.join();
-    thread_2_commande.join();
-    // thread_3_listener_MICROA.join();
-    // thread_4_speaker_MICROA.join();
-    // thread_5_listener_MICROB.join();
-    // thread_6_speaker_MICROB.join();
+    // thread_1_localisation.join();
+    // thread_2_commande.join();
+    thread_3_listener_MICROA.join();
+    thread_4_speaker_MICROA.join();
+    thread_5_listener_MICROB.join();
+    thread_6_speaker_MICROB.join();
     // thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
@@ -174,12 +194,12 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
             std::string reponse;
             serial_port->ReadLine(reponse);
             if(debug_mode==1) {std::cout << "reponse:" << reponse;}
-
+    
             if(match_ping_pong(message, reponse))
             {   
                 // TODO: move this cheat code.
-                if(match_ping_pong("1/A", reponse)){ port_A_name = name_port; }
-                if(match_ping_pong("1/B", reponse)){ port_B_name = name_port; }
+                if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
+                if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
                 // TODOEND.
 
                 return serial_port;
@@ -195,11 +215,9 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
         std::string name_port = "/dev/ttyUSB" + std::__cxx11::to_string(i);
         bool is_openable = true;
 
-        if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
+        if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
 
-        try{ 
-            serial_port->Open(name_port);
-        }
+        try{ serial_port->Open(name_port);}
         catch (LibSerial::OpenFailed ex)
         {
             if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
@@ -218,13 +236,18 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
             if(debug_mode==1) {std::cout << "message:" << message << "\n";}
             try{ serial_port->Write(message);}
             catch(std::runtime_error ex) { std::cout << "nop\n"; }
-
+            
             std::string reponse;
             serial_port->ReadLine(reponse);
             if(debug_mode==1) {std::cout << "reponse:" << reponse;}
 
             if(match_ping_pong(message, reponse))
-            {
+            {   
+                // TODO: move this cheat code.
+                if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
+                if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
+                // TODOEND.
+
                 return serial_port;
             }
             else{serial_port->Close();}
@@ -1093,6 +1116,20 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode allow user to manualy control the robot from the
                     interface.
             */
+
+            //TODO: BRUTE FORCE FORWARS
+            // robot_control.direction.m1L_s = 0;
+            // robot_control.motor.m1L = 255;
+            // robot_control.direction.m2L_s = 0;
+            // robot_control.motor.m2L = 255;
+            // robot_control.direction.m3L_s = 0;
+            // robot_control.motor.m3L = 255;
+            // robot_control.direction.m1R_s = 0;
+            // robot_control.motor.m1R = 255;
+            // robot_control.direction.m2R_s = 0;
+            // robot_control.motor.m2R = 255;
+            // robot_control.direction.m3R_s = 0;
+            // robot_control.motor.m3R = 255;
         }
     }
 }
@@ -1116,15 +1153,17 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
     */
 
     // TIME VARIABLE
-    int time_of_loop     = 1000/frequency;                                       // time wait until ping.
+    int time_of_ping     = 500;                                                  // (2Hz) time wait until ping.
+    int time_of_loop     = 1000/frequency;                                       // this is the real factor of Hz of this thread.
     int time_since_lost  = 500;                                                  // time to declare the port lost and close.
     bool is_lost         = false;
 
     std::chrono::high_resolution_clock::time_point timer_start, current_timer;
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
+    auto last_ping_time = std::chrono::high_resolution_clock::now();
 
-    std::string message = "1/X";
+    std::string message = "0/X";
 
     // ANALYSE STATS.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
@@ -1145,43 +1184,86 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
         }
         last_loop_time = std::chrono::high_resolution_clock::now();
 
-        // send ping all 500ms.
+        // send ping all 50ms.
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
 
-        if(*serial_port != NULL)
+        // for Microcontroler A.
+        if(micro_name == "A")
         {
-            try{
-                (**serial_port).Write(message);
-                is_lost = false;
-            }
-            catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-            catch(std::runtime_error ex)
+            // Check if robot_control is different than robot_control_last_send.
+            if(!(robot_control == robot_control_last_send))
             {
-                if(!is_lost)
-                {
-                    // we stard timer.
-                    timer_start = std::chrono::high_resolution_clock::now();
-                    is_lost = true;
-                }
+                robot_control.compute_message_microA();
 
-                // if lost for more than XX00ms we close it.
-                current_timer = std::chrono::high_resolution_clock::now();
-                time_span = current_timer - timer_start;
-                if((int)time_span.count() > time_since_lost)
-                {
-                    // close connection.
-                    (**serial_port).Close();
-                    *serial_port = NULL;
-                    state = 2;
+                try{
+                    (**serial_port).Write(robot_control.message_microcontrolerA);
                 }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex){}
+                robot_control_last_send = robot_control;
+                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
         }
-        else{
-            // we are disconnect.
-            state = 2;
-            // we try to found it.
-            *serial_port = get_available_port(1, pong_message, true);
+        // for Microcontroler B.
+        if(micro_name == "B")
+        {
+            // Check if robot_control is different than robot_control_last_send.
+            if(robot_control.isServo_different(robot_control_last_send))
+            {
+                robot_control.compute_message_microB();
+
+                try{
+                    (**serial_port).Write(robot_control.message_microcontrolerB);
+                }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex){}
+
+                robot_control_last_send.change_servo(robot_control);
+                std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
+            }
+        }
+
+        // send ping if last ping was send since time_of_ping.
+        auto tc = std::chrono::high_resolution_clock::now();
+        time_span = tc - last_ping_time;
+        if((int)time_span.count() > time_of_ping)
+        {
+            if(*serial_port != NULL)
+            {
+                try{
+                    (**serial_port).Write(message);
+                    is_lost = false;
+                    last_ping_time = std::chrono::high_resolution_clock::now();
+                }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex)
+                {
+                    if(!is_lost)
+                    {
+                        // we stard timer.
+                        timer_start = std::chrono::high_resolution_clock::now();
+                        is_lost = true;
+                    }
+
+                    // if lost for more than XX00ms we close it.
+                    current_timer = std::chrono::high_resolution_clock::now();
+                    time_span = current_timer - timer_start;
+                    if((int)time_span.count() > time_since_lost)
+                    {
+                        // close connection.
+                        (**serial_port).Close();
+                        *serial_port = NULL;
+                        state = 2;
+                    }
+                }
+            }
+            else{
+                // we are disconnect.
+                state = 2;
+                // we try to found it.
+                *serial_port = get_available_port(1, pong_message, true);
+            }
         }
     }
 }
@@ -1233,6 +1315,7 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                 // {
                 //     std::cout << "reponse:" << reponse << std::endl;
                 // }
+                // else{std::cout << "reponse as size of 0.";}
                 
                 if(match_ping_pong(message_pong, reponse))
                 {
@@ -1674,6 +1757,147 @@ void Robot_system::add_lines(cv::Mat image)
 
 }
 
+void Robot_system::add_lines_sensor(cv::Mat image)
+{
+    /* for debug sensor. */
+
+    cv::line(image, cv::Point(0, 150), cv::Point(600, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 300), cv::Point(600, 300), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(150, 0), cv::Point(150, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(300, 0), cv::Point(300, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(450, 0), cv::Point(450, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(200, 150), cv::Point(200, 300), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(400, 150), cv::Point(400, 300), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+}
+
+void Robot_system::add_ultrasonic(cv::Mat image)
+{
+    /* for debug sensor. */
+    cv::Scalar fond_ulF0( 255, 255, 255);
+    cv::Scalar fond_ulF1( 255, 255, 255);
+    cv::Scalar fond_ulF2( 255, 255, 255);
+    cv::Scalar fond_ulF3( 255, 255, 255);
+    cv::Scalar fond_ulB0( 255, 255, 255);
+    cv::Scalar fond_ulB1( 255, 255, 255);
+    cv::Scalar fond_ulB2( 255, 255, 255);
+
+    fond_ulF0 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF0);
+    fond_ulF1 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF1);
+    fond_ulF2 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF2);
+    fond_ulF3 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF3);
+    fond_ulB0 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB0);
+    fond_ulB1 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB1);
+    fond_ulB2 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB2);
+
+    rectangle(image, cv::Point(0, 0), cv::Point(150, 150),
+            fond_ulF0,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF0),
+            cv::Point(40, 90), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+    
+    rectangle(image, cv::Point(150, 0), cv::Point(300, 150),
+            fond_ulF1,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF1),
+            cv::Point(40+150, 90), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+
+    rectangle(image, cv::Point(300, 0), cv::Point(450, 150),
+            fond_ulF2,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF2),
+            cv::Point(40+300, 90), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+
+    rectangle(image, cv::Point(450, 0), cv::Point(600, 150),
+            fond_ulF3,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF3),
+            cv::Point(40+450, 90), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+
+    rectangle(image, cv::Point(0, 150), cv::Point(200, 300),
+            fond_ulB0,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB0),
+            cv::Point(40, 90+150), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+
+    rectangle(image, cv::Point(200, 150), cv::Point(400, 300),
+            fond_ulB1,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB1),
+            cv::Point(40+200, 90+150), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+
+    rectangle(image, cv::Point(400, 150), cv::Point(600, 300),
+            fond_ulB2,
+            -1, cv::LINE_8);
+    cv::putText(image, //target image
+            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB2),
+            cv::Point(40+400, 90+150), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+}
+
+void Robot_system::add_energy_sensor(cv::Mat image)
+{
+    /* Sensor debug.*/
+
+    cv::putText(image, //target image
+            cv::format("%2.2f V", robot_sensor_data.energy.voltage),
+            cv::Point(100, 340), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+    cv::putText(image, //target image
+            cv::format("%2.2f A", robot_sensor_data.energy.current),
+            cv::Point(100+300, 340), //top-left position
+            0, //font
+            1.0,
+            CV_RGB(0, 0, 0), //font color
+            2);
+}
+
+cv::Scalar Robot_system::get_color_ultrasonic(double value)
+{
+    if(value == 0) return cv::Scalar( 255, 255, 255);
+    else{
+        if(value < 0.2) return cv::Scalar( 0, 0, 255);
+        if(value < 0.5) return cv::Scalar( 0, 165, 255);
+        if(value < 0.8) return cv::Scalar( 0, 255, 255);
+        return cv::Scalar( 0, 255, 0);
+    }
+}
+
 void Robot_system::thread_ANALYSER(int frequency)
 {
     /*
@@ -1892,6 +2116,18 @@ void Robot_system::thread_ANALYSER(int frequency)
             cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
             cv::imshow("Debug visual map", copy_debug_visual_map);
         }    
+
+        // FOR SENSOR DEBUG.
+        if(true)
+        {   
+            cv::Mat copy_debug_sensor = debug_sensor.clone();
+            add_ultrasonic(copy_debug_sensor);
+            add_energy_sensor(copy_debug_sensor);
+            add_lines_sensor(copy_debug_sensor);
+            cv::namedWindow("Debug sensor",cv::WINDOW_AUTOSIZE);
+            cv::imshow("Debug sensor", copy_debug_sensor);
+        }
+
         char d=(char)cv::waitKey(25);
 	    if(d==27)
 	      break;
@@ -2012,4 +2248,15 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
     // 3
     cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),1, cv::Scalar(255,0,0), cv::FILLED, 1,0);
     // cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+}
+
+void Robot_system::debug_init_sensor()
+{
+    /*
+        DESCRIPTION: this function will init the debug fonction for 
+            all sensor of robot.
+    */
+
+    cv::Mat debug_sensor_init(350, 600, CV_8UC3, cv::Scalar(255, 255, 255));
+    debug_sensor = debug_sensor_init;
 }
