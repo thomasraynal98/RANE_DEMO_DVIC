@@ -16,7 +16,7 @@ https://libserial.readthedocs.io/en/latest/tutorial.html
 * [BUG]       : thread frequency problem TH3/TH5.
 * [BUG]       : the cpu load is not very accurate.
 * [ADD]       : create a .sh to chmod all component.
-* [ADD]       : in make_weighted_map.cpp add lower case security for interest name.
+* [ADD]       : in make_weighted_map.cpp user input add lower case security for interest name.
 * [BUG]       : resolve the data running problem for metadata callback
 to add it to debug interface.
 * [ADD]       : for the moment the "try_avoid" area is only use for
@@ -25,6 +25,7 @@ validation distance and not in A* algorythme.
 * [ADD]       : take speed of robot in compte to create validation speed.
 * [BUG]       : put some lock during distance_RKP and target_angle update.
 * [BUG]       : bug of path planning when destination is very far.
+* [ADD]       : add global variable for map precision.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

@@ -34,6 +34,11 @@ struct Robot_control
         int m1L{0}, m2L{0}, m3L{0};
         int m1R{0}, m2R{0}, m3R{0};
     } motor;
+    struct Direction
+    {
+        int m1L_s{0}, m2L_s{0}, m3L_s{0};
+        int m1R_s{0}, m2R_s{0}, m3R_s{0};
+    } direction;
     struct Servo
     {
         int SL{0}, SR{0};

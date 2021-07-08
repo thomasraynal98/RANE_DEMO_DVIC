@@ -1044,7 +1044,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
-
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
         if(robot_general_state == Robot_state().compute_nav)
         {   
             /*
@@ -1882,14 +1882,16 @@ void Robot_system::thread_ANALYSER(int frequency)
         // char c=(char)cv::waitKey(25);
 
         // FOR VISUAL MAP DEBUG.
-        cv::Mat copy_debug_visual_map = debug_visual_map.clone();
+        if(robot_general_state == Robot_state().autonomous_nav)
+        {
+            cv::Mat copy_debug_visual_map = debug_visual_map.clone();
 
-        debug_add_robot_pose(copy_debug_visual_map);
-        debug_add_path_keypoint(copy_debug_visual_map);
+            debug_add_robot_pose(copy_debug_visual_map);
+            debug_add_path_keypoint(copy_debug_visual_map);
 
-        cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
-        cv::imshow("Debug visual map", copy_debug_visual_map);
-        
+            cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
+            cv::imshow("Debug visual map", copy_debug_visual_map);
+        }    
         char d=(char)cv::waitKey(25);
 	    if(d==27)
 	      break;
@@ -1905,7 +1907,7 @@ void Robot_system::debug_message_server()
             debug process.
         INFO       : this function will not be use at the end.
     */
-    robot_general_state = Robot_state().compute_nav;
+    robot_general_state = Robot_state().manual;
 }
 
 void Robot_system::debug_init_debug_map()
