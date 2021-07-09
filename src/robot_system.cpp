@@ -107,8 +107,8 @@ Robot_system::Robot_system(std::string val_id)
     // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
@@ -122,8 +122,8 @@ Robot_system::Robot_system(std::string val_id)
     // thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
-    thread_5_listener_MICROB.join();
-    thread_6_speaker_MICROB.join();
+    // thread_5_listener_MICROB.join();
+    // thread_6_speaker_MICROB.join();
     // thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
@@ -1116,20 +1116,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode allow user to manualy control the robot from the
                     interface.
             */
-
-            //TODO: BRUTE FORCE FORWARS
-            // robot_control.direction.m1L_s = 0;
-            // robot_control.motor.m1L = 255;
-            // robot_control.direction.m2L_s = 0;
-            // robot_control.motor.m2L = 255;
-            // robot_control.direction.m3L_s = 0;
-            // robot_control.motor.m3L = 255;
-            // robot_control.direction.m1R_s = 0;
-            // robot_control.motor.m1R = 255;
-            // robot_control.direction.m2R_s = 0;
-            // robot_control.motor.m2R = 255;
-            // robot_control.direction.m3R_s = 0;
-            // robot_control.motor.m3R = 255;
         }
     }
 }
@@ -1189,38 +1175,41 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
         std::this_thread::sleep_until(next);
 
         // for Microcontroler A.
-        if(micro_name == "A")
+        if(*serial_port != NULL)
         {
-            // Check if robot_control is different than robot_control_last_send.
-            if(!(robot_control == robot_control_last_send))
+            if(micro_name == "A")
             {
-                robot_control.compute_message_microA();
+                // Check if robot_control is different than robot_control_last_send.
+                if(!(robot_control == robot_control_last_send))
+                {
+                    robot_control.compute_message_microA();
 
-                try{
-                    (**serial_port).Write(robot_control.message_microcontrolerA);
+                    try{
+                        (**serial_port).Write(robot_control.message_microcontrolerA);
+                    }
+                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                    catch(std::runtime_error ex){}
+                    robot_control_last_send = robot_control;
+                    std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
                 }
-                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                catch(std::runtime_error ex){}
-                robot_control_last_send = robot_control;
-                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
-        }
-        // for Microcontroler B.
-        if(micro_name == "B")
-        {
-            // Check if robot_control is different than robot_control_last_send.
-            if(robot_control.isServo_different(robot_control_last_send))
+            // for Microcontroler B.
+            if(micro_name == "B")
             {
-                robot_control.compute_message_microB();
+                // Check if robot_control is different than robot_control_last_send.
+                if(robot_control.isServo_different(robot_control_last_send))
+                {
+                    robot_control.compute_message_microB();
 
-                try{
-                    (**serial_port).Write(robot_control.message_microcontrolerB);
+                    try{
+                        (**serial_port).Write(robot_control.message_microcontrolerB);
+                    }
+                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                    catch(std::runtime_error ex){}
+
+                    robot_control_last_send.change_servo(robot_control);
+                    std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
                 }
-                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                catch(std::runtime_error ex){}
-
-                robot_control_last_send.change_servo(robot_control);
-                std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
             }
         }
 
@@ -1258,7 +1247,8 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                     }
                 }
             }
-            else{
+            else
+            {
                 // we are disconnect.
                 state = 2;
                 // we try to found it.
