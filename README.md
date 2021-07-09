@@ -26,9 +26,13 @@ validation distance and not in A* algorythme.
 * [BUG]       : put some lock during distance_RKP and target_angle update.
 * [BUG]       : bug of path planning when destination is very far.
 * [ADD]       : add global variable for map precision.
+* [ADD]       : smooth voltage sensor value.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.
+
+## WHEN YOU USE ./rane_software
+* run this command "sudo ./rane_software".
 
 ## WHEN YOU USE ./make_weighted_map EXECUTABLE
 * put the occupensy grid map.png in the folder "/data/map_brut".

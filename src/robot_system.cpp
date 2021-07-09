@@ -36,6 +36,7 @@
 #include <opencv2/highgui.hpp>
 
 #include "../include/robot_system.h"
+#include "../include/fonction.h"
 
 // CONSTRUCTOR.
 Robot_system::Robot_system(std::string val_id)
@@ -49,7 +50,7 @@ Robot_system::Robot_system(std::string val_id)
     fan_power                 = -1;
 
     // initialisation SLAM.
-    // init_slam_sdk();
+    init_slam_sdk();
 
     // initialisation map and points (TODO: in the future, no points will be in computer
     // only send from server).
@@ -103,12 +104,12 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
@@ -118,12 +119,12 @@ Robot_system::Robot_system(std::string val_id)
 
     debug_message_server();
 
-    // thread_1_localisation.join();
+    thread_1_localisation.join();
     // thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
-    // thread_5_listener_MICROB.join();
-    // thread_6_speaker_MICROB.join();
+    thread_5_listener_MICROB.join();
+    thread_6_speaker_MICROB.join();
     // thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
@@ -1137,6 +1138,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
         * ping_frequence > the frequence of ping.
         * micro_name     > the name of the microcontroler (A) ou (B).
     */
+    bool debug = true;
 
     // TIME VARIABLE
     int time_of_ping     = 500;                                                  // (2Hz) time wait until ping.
@@ -1149,7 +1151,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
     auto next = std::chrono::high_resolution_clock::now();
     auto last_ping_time = std::chrono::high_resolution_clock::now();
 
-    std::string message = "0/X";
+    std::string message = "0/";
 
     // ANALYSE STATS.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
@@ -1174,45 +1176,6 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
 
-        // for Microcontroler A.
-        if(*serial_port != NULL)
-        {
-            if(micro_name == "A")
-            {
-                // Check if robot_control is different than robot_control_last_send.
-                if(!(robot_control == robot_control_last_send))
-                {
-                    robot_control.compute_message_microA();
-
-                    try{
-                        (**serial_port).Write(robot_control.message_microcontrolerA);
-                    }
-                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                    catch(std::runtime_error ex){}
-                    robot_control_last_send = robot_control;
-                    std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
-                }
-            }
-            // for Microcontroler B.
-            if(micro_name == "B")
-            {
-                // Check if robot_control is different than robot_control_last_send.
-                if(robot_control.isServo_different(robot_control_last_send))
-                {
-                    robot_control.compute_message_microB();
-
-                    try{
-                        (**serial_port).Write(robot_control.message_microcontrolerB);
-                    }
-                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                    catch(std::runtime_error ex){}
-
-                    robot_control_last_send.change_servo(robot_control);
-                    std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
-                }
-            }
-        }
-
         // send ping if last ping was send since time_of_ping.
         auto tc = std::chrono::high_resolution_clock::now();
         time_span = tc - last_ping_time;
@@ -1220,8 +1183,9 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
         {
             if(*serial_port != NULL)
             {
+                // std::cout << "[PING:" << message+micro_name << "]\n";
                 try{
-                    (**serial_port).Write(message);
+                    (**serial_port).Write(message+micro_name);
                     is_lost = false;
                     last_ping_time = std::chrono::high_resolution_clock::now();
                 }
@@ -1253,6 +1217,61 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                 state = 2;
                 // we try to found it.
                 *serial_port = get_available_port(1, pong_message, true);
+            }
+        }
+
+        // for Microcontroler A.
+        if(*serial_port != NULL)
+        {
+            if(micro_name == "A")
+            {
+                // Check if robot_control is different than robot_control_last_send.
+                if(!(robot_control == robot_control_last_send))
+                {
+                    robot_control.compute_message_microA();
+
+                    try{
+                        (**serial_port).Write(robot_control.message_microcontrolerA);
+                    }
+                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                    catch(std::runtime_error ex){}
+                    robot_control_last_send = robot_control;
+                    // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                }
+            }
+            // for Microcontroler B.
+            if(micro_name == "B")
+            {
+                // Check if robot_control is different than robot_control_last_send.
+                if(robot_control.isServo_different(robot_control_last_send))
+                {
+                    robot_control.compute_message_microB();
+
+                    try{
+                        (**serial_port).Write(robot_control.message_microcontrolerB);
+                    }
+                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                    catch(std::runtime_error ex){}
+
+                    robot_control_last_send.change_servo(robot_control);
+                    // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
+                }
+
+                //TODO: make this beautiful.
+                if(debug)
+                {
+                    debug = !debug;
+                    // Ask for new sensor information.
+                    try{
+                        (**serial_port).Write("2/X");
+                    }
+                    catch(LibSerial::NotOpen ex){}
+                    catch(std::runtime_error ex){}
+                    // std::cout << "[MESSAGE_MICROB_SEND:2/X]\n";
+                }
+                else{
+                    debug = !debug;
+                }
             }
         }
     }
@@ -1301,28 +1320,55 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                 try{(**serial_port).ReadLine(reponse, stop, msTimeout);}
                 catch(std::runtime_error ex){;}
 
-                // if(reponse.size() > 0)
-                // {
-                //     std::cout << "reponse:" << reponse << std::endl;
-                // }
-                // else{std::cout << "reponse as size of 0.";}
-                
-                if(match_ping_pong(message_pong, reponse))
+                if(reponse.size() > 0)
                 {
-                    t1 = std::chrono::high_resolution_clock::now();
-                }
+                    // read int de categorie.
+                    const char delim = '/';
+                    std::vector<std::string> data_brute;
+                    tokenize(reponse, delim, data_brute);
 
-                // Comparator.
-                t2 = std::chrono::high_resolution_clock::now();
-                time_span = t2 - t1;
-                if((int)time_span.count() > time_since_mute)
-                {
-                    // STATE=MUTE.
-                    state = 3;
-                }
-                else{
-                    // STATE=CONNECT.
-                    state = 1;
+                    std::string::size_type sz;     // alias of size_t
+                    // int de categorie = 0 : ping message.
+
+                    try
+                    {           
+                        if(std::stold(data_brute[0],&sz) == 0)
+                        {
+                            if(match_ping_pong(message_pong, reponse))
+                            {
+                                t1 = std::chrono::high_resolution_clock::now();
+                            }
+
+                            // Comparator.
+                            t2 = std::chrono::high_resolution_clock::now();
+                            time_span = t2 - t1;
+                            if((int)time_span.count() > time_since_mute)
+                            {
+                                // STATE=MUTE.
+                                state = 3;
+                            }
+                            else{
+                                // STATE=CONNECT.
+                                state = 1;
+                            }
+                        }
+                        
+                        // int de categorie = 2 : sensor message.
+                        if(std::stold(data_brute[0],&sz) == 2 && data_brute.size() == 10)
+                        {
+                            robot_sensor_data.ultrasonic.ulF0 = std::stold(data_brute[1],&sz);
+                            robot_sensor_data.ultrasonic.ulF1 = std::stold(data_brute[2],&sz);
+                            robot_sensor_data.ultrasonic.ulF2 = std::stold(data_brute[3],&sz);
+                            robot_sensor_data.ultrasonic.ulF3 = std::stold(data_brute[4],&sz);
+                            robot_sensor_data.ultrasonic.ulB0 = std::stold(data_brute[5],&sz);
+                            robot_sensor_data.ultrasonic.ulB1 = std::stold(data_brute[6],&sz);
+                            robot_sensor_data.ultrasonic.ulB2 = std::stold(data_brute[7],&sz);
+                            robot_sensor_data.energy.voltage  = std::stold(data_brute[8],&sz);
+                            robot_sensor_data.energy.current  = std::stold(data_brute[9],&sz);
+                        }
+                    }
+                    catch(...)
+                    {}                    
                 }
             }
         }
@@ -1881,9 +1927,9 @@ cv::Scalar Robot_system::get_color_ultrasonic(double value)
 {
     if(value == 0) return cv::Scalar( 255, 255, 255);
     else{
-        if(value < 0.2) return cv::Scalar( 0, 0, 255);
-        if(value < 0.5) return cv::Scalar( 0, 165, 255);
-        if(value < 0.8) return cv::Scalar( 0, 255, 255);
+        if(value < 100) return cv::Scalar( 0, 0, 255);
+        if(value < 500) return cv::Scalar( 0, 165, 255);
+        if(value < 800) return cv::Scalar( 0, 255, 255);
         return cv::Scalar( 0, 255, 0);
     }
 }

@@ -1,6 +1,11 @@
 #ifndef FONCTION_H
 #define FONCTION_H
 
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cmath>
+
 typedef std::pair<int, int> Pair;
 typedef std::tuple<double, int, int> Tuple;
 
@@ -130,8 +135,8 @@ struct Robot_sensor
 {
     struct Ultrasonic
     {
-        double ulF0{0.5}, ulF1{0.47}, ulF2{0.15}, ulF3{0.84};
-        double ulB0{0}, ulB1{0.12}, ulB2{0.5};
+        double ulF0{0}, ulF1{0}, ulF2{0}, ulF3{0};
+        double ulB0{0}, ulB1{0}, ulB2{0};
     } ultrasonic;
     struct Energy
     {
@@ -194,4 +199,5 @@ bool test(bool is_cool);
 
 void from_quaternion_to_euler(Pose& current_pose);
 
+void tokenize(std::string const &str, const char delim, std::vector<std::string> &out);
 #endif
