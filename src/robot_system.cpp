@@ -1165,6 +1165,13 @@ void Robot_system::thread_COMMANDE(int frequency)
                     variable and this information is send in thread_SPEAKER().
             */
 
+            /* Somewhere you actualise manual commande information. */
+
+            if(robot_control.manual_commande_message == 0) { robot_control.manual_new_command = 0;}
+            if(robot_control.manual_commande_message == 1) { robot_control.manual_new_command = 1;}
+            if(robot_control.manual_commande_message == 2) { robot_control.manual_new_command = 2;}
+            if(robot_control.manual_commande_message == 3) { robot_control.manual_new_command = 3;}
+            if(robot_control.manual_commande_message == 4) { robot_control.manual_new_command = 4;}
 
         }
         if(robot_general_state == Robot_state().warning)
@@ -1438,13 +1445,13 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                 PROTECTION CHECKING: We will shake if robot can continue in this
                                     way. TODO: add checking for autonomous mode.
                             */
-                            if(robot_control.manual_commande == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
+                            if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
                             {
                                 /* want to go forward but is blocked. */
                                 robot_control.manual_new_command(0);
                                 // robot_general_state == Robot_state().warning
                             }
-                            if(robot_control.manual_commande == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
+                            if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
                             {
                                 /* want to go backward but is blocked. */
                                 robot_control.manual_new_command(0);

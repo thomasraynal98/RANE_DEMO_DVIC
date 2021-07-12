@@ -49,7 +49,7 @@ struct Robot_control
         int SL{0}, SR{0};
     } servo;
 
-    int manual_commande{0};
+    int manual_commande_message{0};
     std::string message_microcontrolerA{""};
     std::string message_microcontrolerB{""};
 
