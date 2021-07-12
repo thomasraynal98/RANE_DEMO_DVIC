@@ -1496,7 +1496,7 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-7]\n";
 
-        std::cout << "[INPUT_READ>";
+        std::cout << "INPUT_READ>";
         std::cin >> robot_control.manual_commande_message;
     }
 }
