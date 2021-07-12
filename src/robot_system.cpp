@@ -104,13 +104,13 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
+    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
         
@@ -119,13 +119,13 @@ Robot_system::Robot_system(std::string val_id)
 
     debug_message_server();
 
-    thread_1_localisation.join();
+    // thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
     thread_5_listener_MICROB.join();
     thread_6_speaker_MICROB.join();
-    // thread_7_listener_SERVER.join();
+    thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 
@@ -1068,7 +1068,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
         if(robot_general_state == Robot_state().initialisation)
         {
@@ -1167,11 +1167,11 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Somewhere you actualise manual commande information. */
 
-            if(robot_control.manual_commande_message == 0) { robot_control.manual_new_command = 0;}
-            if(robot_control.manual_commande_message == 1) { robot_control.manual_new_command = 1;}
-            if(robot_control.manual_commande_message == 2) { robot_control.manual_new_command = 2;}
-            if(robot_control.manual_commande_message == 3) { robot_control.manual_new_command = 3;}
-            if(robot_control.manual_commande_message == 4) { robot_control.manual_new_command = 4;}
+            if(robot_control.manual_commande_message == 0) { robot_control.manual_new_command(0);}
+            if(robot_control.manual_commande_message == 1) { robot_control.manual_new_command(1);}
+            if(robot_control.manual_commande_message == 2) { robot_control.manual_new_command(2);}
+            if(robot_control.manual_commande_message == 3) { robot_control.manual_new_command(3);}
+            if(robot_control.manual_commande_message == 4) { robot_control.manual_new_command(4);}
 
         }
         if(robot_general_state == Robot_state().warning)
@@ -1445,18 +1445,18 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                 PROTECTION CHECKING: We will shake if robot can continue in this
                                     way. TODO: add checking for autonomous mode.
                             */
-                            if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
-                            {
-                                /* want to go forward but is blocked. */
-                                robot_control.manual_new_command(0);
-                                // robot_general_state == Robot_state().warning
-                            }
-                            if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
-                            {
-                                /* want to go backward but is blocked. */
-                                robot_control.manual_new_command(0);
-                                // robot_general_state == Robot_state().warning
-                            }
+                            // if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
+                            // {
+                            //     /* want to go forward but is blocked. */
+                            //     robot_control.manual_new_command(0);
+                            //     // robot_general_state == Robot_state().warning
+                            // }
+                            // if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
+                            // {
+                            //     /* want to go backward but is blocked. */
+                            //     robot_control.manual_new_command(0);
+                            //     // robot_general_state == Robot_state().warning
+                            // }
                         }
                     }
                     catch(...)
@@ -1495,6 +1495,9 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-7]\n";
+
+        std::cout << "[INPUT_READ>";
+        std::cin >> robot_control.manual_commande_message;
     }
 }
 

@@ -182,13 +182,13 @@ struct Robot_control
             motor.m1L = 255;
             direction.m1L_s = 0;
             motor.m1R = 255;
-            direction.m1R_s = 0;
+            direction.m1R_s = 1;
             motor.m2L = 255;
             direction.m2L_s = 0;
             motor.m2R = 255;
             direction.m2R_s = 1;
             motor.m3L = 255;
-            direction.m3L_s = 1;
+            direction.m3L_s = 0;
             motor.m3R = 255;
             direction.m3R_s = 1;
         }
@@ -198,13 +198,13 @@ struct Robot_control
             motor.m1L = 255;
             direction.m1L_s = 1;
             motor.m1R = 255;
-            direction.m1R_s = 1;
+            direction.m1R_s = 0;
             motor.m2L = 255;
             direction.m2L_s = 1;
             motor.m2R = 255;
             direction.m2R_s = 0;
             motor.m3L = 255;
-            direction.m3L_s = 0;
+            direction.m3L_s = 1;
             motor.m3R = 255;
             direction.m3R_s = 0;
         }
