@@ -105,7 +105,7 @@ Robot_system::Robot_system(std::string val_id)
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
-    // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 20);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
@@ -120,7 +120,7 @@ Robot_system::Robot_system(std::string val_id)
     debug_message_server();
 
     thread_1_localisation.join();
-    // thread_2_commande.join();
+    thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
     thread_5_listener_MICROB.join();
@@ -1069,6 +1069,33 @@ void Robot_system::thread_COMMANDE(int frequency)
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
         std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+
+        if(robot_general_state == Robot_state().initialisation)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is automatocly activate when the robot start
+                    and are checking for map.
+            */
+        }
+        if(robot_general_state == Robot_state().waiting)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when users don't send new information
+                    but the initialisation process of robot is completed.
+            */
+
+            robot_control.manual_new_command(0);
+        }
+        if(robot_general_state == Robot_state().approach)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when robot is charging, is a version 
+                    of waiting mode.
+            */
+        }
         if(robot_general_state == Robot_state().compute_nav)
         {   
             /*
@@ -1110,13 +1137,54 @@ void Robot_system::thread_COMMANDE(int frequency)
             compute_motor_commande();
 
         }
+        if(robot_general_state == Robot_state().home)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is a version of autonomous_nav but there are
+                    only one destination, the home area. This destination
+                    is just in front of the charger pad. And after that
+                    the robot can if you want pass in approach mode for
+                    docking.
+            */
+        }
+        if(robot_general_state == Robot_state().approach)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow robot to dock on the docking pad for
+                    charging process.
+            */
+        }
         if(robot_general_state == Robot_state().manual)
         {
             /*
                 MODE DESCRIPTION:
                     This mode allow user to manualy control the robot from the
-                    interface.
+                    interface, in this thread we only change the robot_control
+                    variable and this information is send in thread_SPEAKER().
             */
+
+
+        }
+        if(robot_general_state == Robot_state().warning)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is automaticly activate when a problem is 
+                    detected during robot process.
+            */
+
+           robot_control.manual_new_command(0);
+        }
+        if(robot_general_state == Robot_state().reset)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow user to reset the robot.
+            */
+
+           robot_control.manual_new_command(0);
         }
     }
 }
@@ -1365,6 +1433,23 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                             robot_sensor_data.ultrasonic.ulB2 = std::stold(data_brute[7],&sz);
                             robot_sensor_data.energy.voltage  = std::stold(data_brute[8],&sz);
                             robot_sensor_data.energy.current  = std::stold(data_brute[9],&sz);
+
+                            /*
+                                PROTECTION CHECKING: We will shake if robot can continue in this
+                                    way. TODO: add checking for autonomous mode.
+                            */
+                            if(robot_control.manual_commande == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
+                            {
+                                /* want to go forward but is blocked. */
+                                robot_control.manual_new_command(0);
+                                // robot_general_state == Robot_state().warning
+                            }
+                            if(robot_control.manual_commande == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
+                            {
+                                /* want to go backward but is blocked. */
+                                robot_control.manual_new_command(0);
+                                // robot_general_state == Robot_state().warning
+                            }
                         }
                     }
                     catch(...)

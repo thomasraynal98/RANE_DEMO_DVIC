@@ -35,7 +35,6 @@ class Robot_system
     private:
         // VARIABLE.
         std::string robot_id;
-        double battery_voltage;
         double robot_speed;
         std::string robot_general_state;
         double distance_between_keypoint = 0.2;
@@ -164,7 +163,10 @@ class Robot_system
         void add_ultrasonic(cv::Mat image);
         cv::Scalar get_color_ultrasonic(double value);
         void add_energy_sensor(cv::Mat image);
-        
+        void debug_message_server();
+        void debug_init_debug_map();
+        void debug_init_sensor();
+
         // THREAD.
         void thread_LOCALISATION(int frequency);
         void thread_COMMANDE(int frequency);
@@ -174,10 +176,6 @@ class Robot_system
         void thread_SERVER_SPEAKER(int frequency);
         void thread_ANALYSER(int frequency);
 
-        // FONCTION DEBUG.
-        void debug_message_server();
-        void debug_init_debug_map();
-        void debug_init_sensor();
 };
 
 class Robot_state{

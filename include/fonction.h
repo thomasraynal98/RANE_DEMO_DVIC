@@ -49,6 +49,7 @@ struct Robot_control
         int SL{0}, SR{0};
     } servo;
 
+    int manual_commande{0};
     std::string message_microcontrolerA{""};
     std::string message_microcontrolerB{""};
 
@@ -61,7 +62,6 @@ struct Robot_control
                direction.m3L_s == ctr2.direction.m3L_s && direction.m1R_s == ctr2.direction.m1R_s &&\
                direction.m2R_s == ctr2.direction.m2R_s && direction.m3R_s == ctr2.direction.m3R_s;
     }
-
     void operator=(Robot_control& ctr2)
     {
         motor.m1L = ctr2.motor.m1L;
@@ -78,7 +78,6 @@ struct Robot_control
         direction.m2R_s = ctr2.direction.m2R_s;
         direction.m3R_s = ctr2.direction.m3R_s;
     }
-
     void compute_message_microA()
     {
         /*
@@ -100,7 +99,6 @@ struct Robot_control
         message_string += std::to_string(direction.m3R_s) + "/" + std::to_string(motor.m3R);
         message_microcontrolerA = message_string;
     }
-
     void compute_message_microB()
     {
         /*
@@ -117,17 +115,99 @@ struct Robot_control
         message_string += std::to_string(servo.SL) + "/" + std::to_string(servo.SR);
         message_microcontrolerB = message_string;
     }
-
     void change_servo(Robot_control new_command_send)
     {
         servo.SL = new_command_send.servo.SL;
         servo.SR = new_command_send.servo.SR;
-    }
-    
+    }   
     bool isServo_different(Robot_control new_command_send)
     {
         return servo.SL != new_command_send.servo.SL || \
                servo.SR != new_command_send.servo.SR;
+    }
+    void manual_new_command(int command)
+    {
+        /* Change command. */
+        if(command == 0)
+        {
+            // STOP.
+            motor.m1L = 0;
+            direction.m1L_s = 0;
+            motor.m1R = 0;
+            direction.m1R_s = 0;
+            motor.m2L = 0;
+            direction.m2L_s = 0;
+            motor.m2R = 0;
+            direction.m2R_s = 0;
+            motor.m3L = 0;
+            direction.m3L_s = 0;
+            motor.m3R = 0;
+            direction.m3R_s = 0;
+        }
+        if(command == 1)
+        {
+            // FORWARD.
+            motor.m1L = 255;
+            direction.m1L_s = 0;
+            motor.m1R = 255;
+            direction.m1R_s = 0;
+            motor.m2L = 255;
+            direction.m2L_s = 0;
+            motor.m2R = 255;
+            direction.m2R_s = 0;
+            motor.m3L = 255;
+            direction.m3L_s = 0;
+            motor.m3R = 255;
+            direction.m3R_s = 0;
+        }
+        if(command == 2)
+        {
+            // BACKWARD.
+            motor.m1L = 255;
+            direction.m1L_s = 1;
+            motor.m1R = 255;
+            direction.m1R_s = 1;
+            motor.m2L = 255;
+            direction.m2L_s = 1;
+            motor.m2R = 255;
+            direction.m2R_s = 1;
+            motor.m3L = 255;
+            direction.m3L_s = 1;
+            motor.m3R = 255;
+            direction.m3R_s = 1;
+        }
+        if(command == 3)
+        {
+            // ROTATE LEFT.
+            motor.m1L = 255;
+            direction.m1L_s = 0;
+            motor.m1R = 255;
+            direction.m1R_s = 0;
+            motor.m2L = 255;
+            direction.m2L_s = 0;
+            motor.m2R = 255;
+            direction.m2R_s = 1;
+            motor.m3L = 255;
+            direction.m3L_s = 1;
+            motor.m3R = 255;
+            direction.m3R_s = 1;
+        }
+        if(command == 4)
+        {
+            // ROTATE RIGHT.
+            motor.m1L = 255;
+            direction.m1L_s = 1;
+            motor.m1R = 255;
+            direction.m1R_s = 1;
+            motor.m2L = 255;
+            direction.m2L_s = 1;
+            motor.m2R = 255;
+            direction.m2R_s = 0;
+            motor.m3L = 255;
+            direction.m3L_s = 0;
+            motor.m3R = 255;
+            direction.m3R_s = 0;
+        }
     }
 };
 
@@ -143,6 +223,21 @@ struct Robot_sensor
         double voltage{0};
         double current{0};
     } energy;
+
+    int proximity_sensor_detection()
+    {
+        /* Check if a sensor is blocked. */
+
+        double threshold = 15; //mm
+        if(ultrasonic.ulF0 < threshold) { return 1;}
+        if(ultrasonic.ulF1 < threshold) { return 2;}
+        if(ultrasonic.ulF2 < threshold) { return 3;}
+        if(ultrasonic.ulF3 < threshold) { return 4;}
+        if(ultrasonic.ulB0 < threshold) { return 5;}
+        if(ultrasonic.ulB1 < threshold) { return 6;}
+        if(ultrasonic.ulB2 < threshold) { return 7;}
+        return 0;
+    }
 };
 
 struct Path_keypoint {
