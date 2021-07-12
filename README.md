@@ -27,6 +27,7 @@ validation distance and not in A* algorythme.
 * [BUG]       : bug of path planning when destination is very far.
 * [ADD]       : add global variable for map precision.
 * [ADD]       : smooth voltage sensor value.
+* [ADD]       : integrate smooth angle.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.
