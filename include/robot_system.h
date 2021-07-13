@@ -59,8 +59,8 @@ class Robot_system
         std::string path_to_cpu_load        = "/proc/loadavg";
         std::string path_to_fan_power       = "/";
         std::string path_to_param_yaml      = "../data/yaml/param.yaml";
-        std::string path_to_weighted_map    = "../data/map_weighted/dvic1.occupancy.png";
-        std::string path_to_current_session = "../data/session/dvic1.session";
+        std::string path_to_weighted_map    = "../data/map_weighted/dvic2.occupancy.png";
+        std::string path_to_current_session = "../data/session/dvic2.session";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
         LibSerial::SerialPort** __serial_port_controle_A;

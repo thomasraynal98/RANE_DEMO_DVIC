@@ -62,8 +62,7 @@ Robot_system::Robot_system(std::string val_id)
 
     // initialisation of debug map.
     debug_init_debug_map();
-    robot_position.pixel.i = 85;
-    robot_position.pixel.j = 200;
+    from_3DW_to_2DM();
 
     // initialisation of debug sensor.
     debug_init_sensor();
@@ -97,19 +96,19 @@ Robot_system::Robot_system(std::string val_id)
     thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_2_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_3_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_4_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_5_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_6_last_hz_update   = std::chrono::high_resolution_clock::now();
+    // thread_4_last_hz_update   = std::chrono::high_resolution_clock::now();
+    // thread_5_last_hz_update   = std::chrono::high_resolution_clock::now();
+    // thread_6_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_7_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
+    // thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
@@ -117,7 +116,7 @@ Robot_system::Robot_system(std::string val_id)
     // init completed and join thread.
     robot_general_state       = Robot_state().waiting;
 
-    debug_message_server();
+    // debug_message_server();
 
     // thread_1_localisation.join();
     thread_2_commande.join();
@@ -355,8 +354,6 @@ try
       robot_position.orientation.z = poseObj->getRotation().z();
       robot_position.orientation.w = poseObj->getRotation().w();
       from_quaternion_to_euler(robot_position);
-      robot_position.pixel.i = 85;
-      robot_position.pixel.j = 200;
     });
 
     // TODO: [BUG] resolve this problem.
@@ -602,7 +599,7 @@ bool Robot_system::isUnBlocked(cv::Mat grid, const Pair& point)
 bool Robot_system::isValid(cv::Mat grid, const Pair& point)
 { 
     // Returns true if row number and column number is in range.
-    return (point.first >= 0) && (point.first < grid.size[0]) && (point.second >= 0) && (point.second < grid.size[1]);
+    return (point.first >= 0) && (point.first < grid.size[1]) && (point.second >= 0) && (point.second < grid.size[0]);
 }
 
 void Robot_system::from_3DW_to_2DM()
@@ -615,6 +612,10 @@ void Robot_system::from_3DW_to_2DM()
     //DEBUG.
     robot_position.pixel.i = 85;
     robot_position.pixel.j = 200;
+
+    //TODO: REMOVE THE DEBUG UP.
+    robot_position.pixel.i = (int)((robot_position.position.x +  6.25)  / 0.05);
+    robot_position.pixel.j = (int)((19.35 - robot_position.position.y)  / 0.05);
 }
 
 Pair Robot_system::from_3DW_to_2DM2(double x, double y)
@@ -625,9 +626,9 @@ Pair Robot_system::from_3DW_to_2DM2(double x, double y)
             Param is in world coordinate system.
     */
 
-    Pair point_pixel(200,200);
-    robot_position.pixel.i = 85;
-    robot_position.pixel.j = 200;
+    Pair point_pixel(0,0);
+    point_pixel.first  = (int)((x +  6.25)  / 0.05);
+    point_pixel.second = (int)((19.35 - y)  / 0.05);
 
     return point_pixel;
 }
@@ -875,7 +876,7 @@ void Robot_system::select_target_keypoint()
     // MAKE SHURE distance_RPK and target_angle was updated.
 
     // part 1. get pointor of the points in a distance of less then "threshold".
-    double threshold = 3.0;
+    double threshold = 1.2;
     return_nearest_path_keypoint(threshold);
 
     // part 2. get the max value for normalization.
@@ -895,10 +896,10 @@ void Robot_system::select_target_keypoint()
 
     // part 3. compute note of the possible candidate.
     std::vector<double> possible_candidate_target_keypoint_note;
-    double weight_distance_RKP = 1.5;
+    double weight_distance_RKP = 0.0;
     double weight_target_angle = 1.0;
-    double weight_distance_KPD = 0.3;
-    double weight_isReach      = 0.1;
+    double weight_distance_KPD = 0.0;
+    double weight_isReach      = 0.0;
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
         double candidate_note    = 0;
@@ -1033,11 +1034,12 @@ void Robot_system::thread_LOCALISATION(int frequency)
         // Update distance_RKP and target_angle.
         if(!possible_candidate_target_keypoint.empty())
         {
-            for(Path_keypoint kp : keypoints_path)
+            for(int i = 0; i < keypoints_path.size(); i++)
             {
-                kp.distance_RKP = compute_distance_RPK(kp.coordinate)*0.05;
-                kp.target_angle = compute_target_angle(kp.coordinate);
+                keypoints_path[i].distance_RKP = compute_distance_RPK(keypoints_path[i].coordinate)*0.05;
+                keypoints_path[i].target_angle = compute_target_angle(keypoints_path[i].coordinate);
             }
+            std::cout << "[YOPUSSY]" << keypoints_path[0].target_angle;
         }
 
     }
@@ -1070,6 +1072,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
         // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
+        from_3DW_to_2DM();
         if(robot_general_state == Robot_state().initialisation)
         {
             /*
@@ -1105,8 +1108,6 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
-            destination_point.first = 245;
-            destination_point.second = 280;
 
             /*TODO: block robot during this process.*/
 
@@ -1523,8 +1524,14 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-7]\n";
 
-        std::cout << "INPUT_READ>";
-        std::cin >> robot_control.manual_commande_message;
+        // TODO: NO EXPLICATION REQUIRED.
+        std::cout << "READ DESTINATION>";
+        int rien;
+        std::cin >> rien;
+        destination_point.first  = 96;
+        destination_point.second = 76;
+        robot_general_state = Robot_state().compute_nav;
+        std::cout << robot_general_state << std::endl;
     }
 }
 
@@ -1560,6 +1567,7 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
     }
 }
 
+// THREAD ANALYSER DEBUG.
 float Robot_system::round(float var)
 {
     // 37.66666 * 100 =3766.66
@@ -2264,12 +2272,14 @@ void Robot_system::thread_ANALYSER(int frequency)
         // char c=(char)cv::waitKey(25);
 
         // FOR VISUAL MAP DEBUG.
-        if(robot_general_state == Robot_state().autonomous_nav)
+        if(true)
         {
             cv::Mat copy_debug_visual_map = debug_visual_map.clone();
 
             debug_add_robot_pose(copy_debug_visual_map);
             debug_add_path_keypoint(copy_debug_visual_map);
+
+            cv::resize(copy_debug_visual_map, copy_debug_visual_map, cv::Size(0,0),1.5,1.5,cv::INTER_LINEAR);//Same as resize(img, dst, Size(img.cols*1.5,img.rows*1.5),0,0,CV_INTER_LINEAR );
 
             cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
             cv::imshow("Debug visual map", copy_debug_visual_map);
@@ -2301,7 +2311,7 @@ void Robot_system::debug_message_server()
             debug process.
         INFO       : this function will not be use at the end.
     */
-    robot_general_state = Robot_state().manual;
+    robot_general_state = Robot_state().waiting;
 }
 
 void Robot_system::debug_init_debug_map()
@@ -2322,8 +2332,7 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     */
 
     // DRAW ROBOT POSE.
-    cv::Point draw_pose = cv::Point(85, 200);
-    // cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
+    cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
     cv::circle( copy_debug_visual_map,
     draw_pose,
     2,
@@ -2331,8 +2340,8 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     cv::FILLED,
     cv::LINE_8 );
 
-    cv::Point draw_pose2 = cv::Point(245, 280);
-    // cv::Point draw_pose = cv::Point(robot_position.pixel.i, robot_position.pixel.j);
+    // TODO: REMOVE DEBUG
+    cv::Point draw_pose2 = cv::Point(96, 76);
     cv::circle( copy_debug_visual_map,
     draw_pose2,
     2,
@@ -2341,36 +2350,13 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     cv::LINE_8 );
 
     // DRAW ROBOT ORIENTATION VECTOR.
-    // double distance_between_vector_point = 0.01;
-    // double distance_total_vector         = 0.40;
-    // int max_point_in_cell                = int(distance_total_vector/sqrt(pow((0.05), 2.0) + pow((0.05), 2.0)));
+    double distance_total_vector         = 0.50; 
+    // TODO: BECARFUL IT'S JUST A REPARATION (M_PI/2)
+    double x   = robot_position.position.x + (cos(robot_position.euler.y) * distance_total_vector);
+    double y   = robot_position.position.y + (sin(robot_position.euler.y) * distance_total_vector);
+    Pair point = from_3DW_to_2DM2(x, y);
+    cv::line(copy_debug_visual_map, cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Point(point.first, point.second), cv::Scalar(0, 0, 255), 1, cv::LINE_8);
 
-    // for(double i = 0; i < distance_total_vector; i += distance_between_vector_point)
-    // {   
-    //     double x   = cos(robot_position.euler.y*(180/M_PI)) * i;
-    //     double y   = sin(robot_position.euler.y*(180/M_PI)) * i;
-    //     Pair point = from_3DW_to_2DM2(x, y);
-
-    //     cv::Scalar pixel = copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second);
-
-    //     // first modif so reset to white.
-    //     if(pixel[0] == 0 || pixel[0] == 50 || pixel[0] == 120 || pixel[0] == 200)
-    //     {
-    //         pixel = cv::Scalar(255,255,255);
-    //     }
-    //     else
-    //     {
-    //         // more it's down, more it's yellow.
-    //         pixel[0] -= int(255/max_point_in_cell);
-    //         if(pixel[0] < 0)
-    //         {
-    //             pixel[0] = 0;
-    //         }
-    //     }
-    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[0] = pixel[0];
-    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[1] = pixel[1];
-    //     copy_debug_visual_map.at<cv::Vec3b>(point.first, point.second)[2] = pixel[2];
-    // }
 }
 
 void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
@@ -2382,30 +2368,44 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
             3 > target keypoints in red + line RPK.
             4 > keypoints isReach in green.
     */
-    
-    // 1 & 4
-    for(int i = 0; i < keypoints_path.size(); i++)
-    {
-        if(keypoints_path[i].isReach)
-        {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(0,255,0), cv::FILLED, 1, 0);
-        }
-        else
-        {
-            cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(120,120,120), cv::FILLED, 1, 0);
-        }
-    }
+    std::cout << "[ADD_DEBUG_PATH]" << std::endl;
 
-    // 2 
-    for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
+    if(keypoints_path.size() > 0 && robot_general_state == Robot_state().autonomous_nav)
     {
-        cv::circle(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second),1, cv::Scalar(19,0,76), cv::FILLED, 1,0);
-        // cv::line(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(19,0,76), 1, cv::LINE_8);
-    }
+        // 1
+        for(int i = 0; i < keypoints_path.size(); i++)
+        {
+            if(!keypoints_path[i].isReach)
+            {
+                cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(120,120,120), cv::FILLED, 1, 0);
+            }
+        }
 
-    // 3
-    cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),1, cv::Scalar(255,0,0), cv::FILLED, 1,0);
-    // cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+        // 2 
+        // TODO: remove
+        for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
+        {
+            cv::circle(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second),1, cv::Scalar(19,0,76), cv::FILLED, 1,0);
+            // cv::line(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(19,0,76), 1, cv::LINE_8);
+        }
+
+        // 4
+        for(int i = 0; i < keypoints_path.size(); i++)
+        {
+            if(keypoints_path[i].isReach)
+            {
+                cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(0,255,0), cv::FILLED, 1, 0);
+            }
+        }
+
+        // 3
+        cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),2, cv::Scalar(255,0,0), cv::FILLED, 1,0);
+        cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+    }
+    else
+    {
+        std::cout << "[WARNING] keypoints_path is empty or we are not in autonomous_nav mode." << std::endl;
+    }
 }
 
 void Robot_system::debug_init_sensor()

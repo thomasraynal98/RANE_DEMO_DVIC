@@ -29,6 +29,9 @@ void from_quaternion_to_euler(Pose& cur_pose)
     double siny_cosp = 2 * (cur_pose.orientation.w * cur_pose.orientation.z + cur_pose.orientation.x * cur_pose.orientation.y);
     double cosy_cosp = 1 - 2 * (cur_pose.orientation.y * cur_pose.orientation.y + cur_pose.orientation.z * cur_pose.orientation.z);
     cur_pose.euler.y = std::atan2(siny_cosp, cosy_cosp);
+
+    // TODO : please god don't judge me.
+    cur_pose.euler.y += M_PI/2;
 }
 
 void tokenize(std::string const &str, const char delim,
