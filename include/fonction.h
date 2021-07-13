@@ -49,7 +49,8 @@ struct Robot_control
         int SL{0}, SR{0};
     } servo;
 
-    bool isTransmit{false};
+    bool isTransmitA{false};
+    bool isTransmitB{false};
     int manual_commande_message{0};
     std::string message_microcontrolerA{""};
     std::string message_microcontrolerB{""};
@@ -144,6 +145,10 @@ struct Robot_control
             direction.m3L_s = 0;
             motor.m3R = 0;
             direction.m3R_s = 0;
+
+            // STOP SERVO
+            servo.SL = 0;
+            servo.SR = 0;
         }
         if(command == 1)
         {
@@ -208,6 +213,50 @@ struct Robot_control
             direction.m3L_s = 1;
             motor.m3R = 255;
             direction.m3R_s = 0;
+        }
+        if(command == 5)
+        {
+            // LEFT SMOOTH.
+            motor.m1L = 120;
+            direction.m1L_s = 0;
+            motor.m1R = 255;
+            direction.m1R_s = 0;
+            motor.m2L = 120;
+            direction.m2L_s = 0;
+            motor.m2R = 255;
+            direction.m2R_s = 0;
+            motor.m3L = 120;
+            direction.m3L_s = 0;
+            motor.m3R = 255;
+            direction.m3R_s = 0;
+        }
+        if(command == 6)
+        {
+            // RIGHT SMOOTH.
+            motor.m1L = 255;
+            direction.m1L_s = 0;
+            motor.m1R = 120;
+            direction.m1R_s = 0;
+            motor.m2L = 255;
+            direction.m2L_s = 0;
+            motor.m2R = 120;
+            direction.m2R_s = 0;
+            motor.m3L = 255;
+            direction.m3L_s = 0;
+            motor.m3R = 120;
+            direction.m3R_s = 0;
+        }
+        if(command == 7)
+        {
+            // SERVO TESTING.
+            servo.SL = 255;
+            servo.SR = 100;
+        }
+        if(command == 8)
+        {
+            // SERVO TESTING.
+            servo.SL = 100;
+            servo.SR = 255;
         }
     }
 };

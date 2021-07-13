@@ -1172,7 +1172,13 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2);}
             if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3);}
             if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4);}
-            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmit = false;}
+            if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5);}
+            if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6);}
+            if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7);}
+            if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8);}
+
+            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
+            if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
 
         }
         if(robot_general_state == Robot_state().warning)
@@ -1302,7 +1308,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
             if(micro_name == "A")
             {
                 // Check if robot_control is different than robot_control_last_send.
-                if(!(robot_control.isTransmit))
+                if(!(robot_control.isTransmitA))
                 {
                     robot_control.compute_message_microA();
 
@@ -1312,7 +1318,6 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                     catch(std::runtime_error ex){}
                     
-                    // robot_control_last_send = robot_control;
                     // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
                 }
             }
@@ -1320,7 +1325,20 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
             if(micro_name == "B")
             {
                 // Check if robot_control is different than robot_control_last_send.
-                if(robot_control.isServo_different(robot_control_last_send))
+                // if(robot_control.isServo_different(robot_control_last_send))
+                // {
+                //     robot_control.compute_message_microB();
+
+                //     try{
+                //         (**serial_port).Write(robot_control.message_microcontrolerB);
+                //     }
+                //     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                //     catch(std::runtime_error ex){}
+
+                //     robot_control_last_send.change_servo(robot_control);
+                //     // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
+                // }
+                if(!(robot_control.isTransmitB))
                 {
                     robot_control.compute_message_microB();
 
@@ -1329,9 +1347,8 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                     }
                     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                     catch(std::runtime_error ex){}
-
-                    robot_control_last_send.change_servo(robot_control);
-                    // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
+                    
+                    // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
                 }
 
                 //TODO: make this beautiful.
@@ -1433,10 +1450,15 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                         // int de categorie = 1 : command pong message.
                         if(std::stold(data_brute[0],&sz) == 1)
                         {
-                            if(match_ping_pong(robot_control.message_microcontrolerA, reponse))
+                            if(match_ping_pong(robot_control.message_microcontrolerA, reponse) && micro_name == "A")
                             {
-                                robot_control.isTransmit = true;
+                                robot_control.isTransmitA = true;
                                 robot_control_last_send  = robot_control;
+                            }
+                            if(match_ping_pong(robot_control.message_microcontrolerB, reponse) && micro_name == "B")
+                            {
+                                robot_control.isTransmitB = true;
+                                robot_control_last_send.change_servo(robot_control);
                             }
                         }
 
