@@ -1167,11 +1167,12 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Somewhere you actualise manual commande information. */
 
-            if(robot_control.manual_commande_message == 0) { robot_control.manual_new_command(0);}
-            if(robot_control.manual_commande_message == 1) { robot_control.manual_new_command(1);}
-            if(robot_control.manual_commande_message == 2) { robot_control.manual_new_command(2);}
-            if(robot_control.manual_commande_message == 3) { robot_control.manual_new_command(3);}
-            if(robot_control.manual_commande_message == 4) { robot_control.manual_new_command(4);}
+            if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0);}
+            if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1);}
+            if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2);}
+            if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3);}
+            if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4);}
+            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmit = false;}
 
         }
         if(robot_general_state == Robot_state().warning)
@@ -1301,7 +1302,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
             if(micro_name == "A")
             {
                 // Check if robot_control is different than robot_control_last_send.
-                if(!(robot_control == robot_control_last_send))
+                if(!(robot_control.isTransmit))
                 {
                     robot_control.compute_message_microA();
 
@@ -1310,7 +1311,8 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                     }
                     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                     catch(std::runtime_error ex){}
-                    robot_control_last_send = robot_control;
+                    
+                    // robot_control_last_send = robot_control;
                     // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
                 }
             }
@@ -1428,6 +1430,16 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                             }
                         }
                         
+                        // int de categorie = 1 : command pong message.
+                        if(std::stold(data_brute[0],&sz) == 1)
+                        {
+                            if(match_ping_pong(robot_control.message_microcontrolerA, reponse))
+                            {
+                                robot_control.isTransmit = true;
+                                robot_control_last_send  = robot_control;
+                            }
+                        }
+
                         // int de categorie = 2 : sensor message.
                         if(std::stold(data_brute[0],&sz) == 2 && data_brute.size() == 10)
                         {
