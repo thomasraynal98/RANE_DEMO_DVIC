@@ -1302,42 +1302,24 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
             }
         }
 
-        // for Microcontroler A.
         if(*serial_port != NULL)
         {
-            if(micro_name == "A")
+            // for Microcontroler A.
+            if(micro_name == "A" && !(robot_control.isTransmitA))
             {
-                // Check if robot_control is different than robot_control_last_send.
-                if(!(robot_control.isTransmitA))
-                {
-                    robot_control.compute_message_microA();
+                robot_control.compute_message_microA();
 
-                    try{
-                        (**serial_port).Write(robot_control.message_microcontrolerA);
-                    }
-                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                    catch(std::runtime_error ex){}
-                    
-                    // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                try{
+                    (**serial_port).Write(robot_control.message_microcontrolerA);
                 }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex){}
+                
+                // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
             // for Microcontroler B.
             if(micro_name == "B")
             {
-                // Check if robot_control is different than robot_control_last_send.
-                // if(robot_control.isServo_different(robot_control_last_send))
-                // {
-                //     robot_control.compute_message_microB();
-
-                //     try{
-                //         (**serial_port).Write(robot_control.message_microcontrolerB);
-                //     }
-                //     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                //     catch(std::runtime_error ex){}
-
-                //     robot_control_last_send.change_servo(robot_control);
-                //     // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
-                // }
                 if(!(robot_control.isTransmitB))
                 {
                     robot_control.compute_message_microB();
@@ -1479,18 +1461,29 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                 PROTECTION CHECKING: We will shake if robot can continue in this
                                     way. TODO: add checking for autonomous mode.
                             */
-                            // if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection() > 0 && robot_sensor_data.proximity_sensor_detection() <= 4)
-                            // {
-                            //     /* want to go forward but is blocked. */
-                            //     robot_control.manual_new_command(0);
-                            //     // robot_general_state == Robot_state().warning
-                            // }
-                            // if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection() >= 5 && robot_sensor_data.proximity_sensor_detection() <= 7)
-                            // {
-                            //     /* want to go backward but is blocked. */
-                            //     robot_control.manual_new_command(0);
-                            //     // robot_general_state == Robot_state().warning
-                            // }
+                            std::cout << "[PRO:" << robot_control.manual_commande_message << "\n";
+                            if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
+                            {
+                                /* want to go forward but is blocked. */
+                                std::cout << "[STOP]\n";
+                                robot_control.manual_new_command(0);
+                                robot_control.compute_message_microA();
+                                robot_control.compute_message_microB();
+                                robot_control.isTransmitA = false;
+                                robot_control.isTransmitB = false;
+                                // robot_general_state == Robot_state().warning
+                            }
+                            if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
+                            {
+                                /* want to go backward but is blocked. */
+                                std::cout << "[STOP]\n";
+                                robot_control.manual_new_command(0);
+                                robot_control.compute_message_microA();
+                                robot_control.compute_message_microB();
+                                robot_control.isTransmitA = false;
+                                robot_control.isTransmitB = false;
+                                // robot_general_state == Robot_state().warning
+                            }
                         }
                     }
                     catch(...)

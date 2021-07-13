@@ -129,6 +129,8 @@ struct Robot_control
     }
     void manual_new_command(int command)
     {
+        manual_commande_message = command;
+
         /* Change command. */
         if(command == 0)
         {
@@ -274,15 +276,22 @@ struct Robot_sensor
         double current{0};
     } energy;
 
-    int proximity_sensor_detection()
+    int proximity_sensor_detection_front()
     {
         /* Check if a sensor is blocked. */
 
-        double threshold = 15; //mm
+        double threshold = 100; //mm
         if(ultrasonic.ulF0 < threshold) { return 1;}
         if(ultrasonic.ulF1 < threshold) { return 2;}
         if(ultrasonic.ulF2 < threshold) { return 3;}
         if(ultrasonic.ulF3 < threshold) { return 4;}
+        return 0;
+    }
+    int proximity_sensor_detection_back()
+    {
+        /* Check if a sensor is blocked. */
+
+        double threshold = 100; //mm
         if(ultrasonic.ulB0 < threshold) { return 5;}
         if(ultrasonic.ulB1 < threshold) { return 6;}
         if(ultrasonic.ulB2 < threshold) { return 7;}
