@@ -37,7 +37,7 @@ class Robot_system
         std::string robot_id;
         double robot_speed;
         std::string robot_general_state;
-        double distance_between_keypoint = 0.2;
+        double distance_between_keypoint = 0.5;
         Robot_sensor robot_sensor_data;
 
         // VARIABLE COMMANDE.

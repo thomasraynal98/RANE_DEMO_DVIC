@@ -23,6 +23,8 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
+// inline int modulo(int a, int b) { return a < 0 ? b - (-a % b): a % b; }
+
 int main()
 {
     Robot_system robot1 = Robot_system("mk2r2");

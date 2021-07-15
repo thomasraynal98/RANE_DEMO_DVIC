@@ -28,6 +28,7 @@ validation distance and not in A* algorythme.
 * [ADD]       : add global variable for map precision.
 * [ADD]       : smooth voltage sensor value.
 * [ADD]       : integrate smooth angle.
+* [BUG]       : the validation_angle on the target keypoint don't work. And they are some bug in angle compute but it's working.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

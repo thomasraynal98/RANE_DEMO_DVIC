@@ -28,6 +28,7 @@ struct Pose
     struct Pixel
     {
         int i{0}, j{0};
+        double y_pixel{0}; // the "orientation on yaw" in pixel coordinate.
     } pixel;
 };
 
@@ -354,4 +355,6 @@ bool test(bool is_cool);
 void from_quaternion_to_euler(Pose& current_pose);
 
 void tokenize(std::string const &str, const char delim, std::vector<std::string> &out);
+
+int modulo(int a, int b);
 #endif

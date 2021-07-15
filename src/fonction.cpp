@@ -31,7 +31,7 @@ void from_quaternion_to_euler(Pose& cur_pose)
     cur_pose.euler.y = std::atan2(siny_cosp, cosy_cosp);
 
     // TODO : please god don't judge me.
-    cur_pose.euler.y += M_PI/2;
+    cur_pose.pixel.y_pixel = 360 - modulo((int)(cur_pose.euler.y*(180/M_PI))+90,360);
 }
 
 void tokenize(std::string const &str, const char delim,
@@ -46,3 +46,5 @@ void tokenize(std::string const &str, const char delim,
         out.push_back(str.substr(start, end - start));
     }
 }
+
+int modulo(int a, int b) { return a < 0 ? b - (-a % b): a % b; }
