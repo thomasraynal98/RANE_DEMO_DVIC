@@ -901,10 +901,10 @@ void Robot_system::select_target_keypoint()
 
     // part 3. compute note of the possible candidate.
     std::vector<double> possible_candidate_target_keypoint_note;
-    double weight_distance_RKP = 0.0;
-    double weight_target_angle = 1.0;
-    double weight_distance_KPD = 0.0;
-    double weight_isReach      = 0.0;
+    double weight_distance_RKP = 0.3;
+    double weight_target_angle = 0.7;
+    double weight_distance_KPD = 0.5;
+    double weight_isReach      = -0.4;
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
         double candidate_note    = 0;
@@ -2285,7 +2285,7 @@ void Robot_system::thread_ANALYSER(int frequency)
             debug_add_robot_pose(copy_debug_visual_map);
             debug_add_path_keypoint(copy_debug_visual_map);
 
-            cv::resize(copy_debug_visual_map, copy_debug_visual_map, cv::Size(0,0),1.7,1.7,cv::INTER_LINEAR);//Same as resize(img, dst, Size(img.cols*1.5,img.rows*1.5),0,0,CV_INTER_LINEAR );
+            cv::resize(copy_debug_visual_map, copy_debug_visual_map, cv::Size(0,0),1.9,1.9,cv::INTER_LINEAR);//Same as resize(img, dst, Size(img.cols*1.5,img.rows*1.5),0,0,CV_INTER_LINEAR );
 
             cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
             cv::imshow("Debug visual map", copy_debug_visual_map);
@@ -2363,13 +2363,13 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     cv::line(copy_debug_visual_map, cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Point(point.first, point.second), cv::Scalar(0, 0, 255), 1, cv::LINE_8);
 
     // TODO : REMOVE INFORMATION ABOUT ANGLE.
-    cv::putText(copy_debug_visual_map, //target image
-        cv::format("%2.2f", robot_position.pixel.y_pixel), //text
-        cv::Point((int)point.first, (int)point.second), //top-left position
-        0, //font
-        0.4,
-        CV_RGB(255, 0, 0), //font color
-        1);
+    // cv::putText(copy_debug_visual_map, //target image
+    //     cv::format("%2.2f", robot_position.pixel.y_pixel), //text
+    //     cv::Point((int)point.first, (int)point.second), //top-left position
+    //     0, //font
+    //     0.4,
+    //     CV_RGB(255, 0, 0), //font color
+    //     1);
 
     // cv::putText(copy_debug_visual_map, //target image
     //     cv::format("%2.2f", compute_vector_RKP(destination_point)), //text
@@ -2407,13 +2407,13 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
         {
             cv::circle(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second),1, cv::Scalar(19,0,76), cv::FILLED, 1,0);
             // cv::line(copy_debug_visual_map, cv::Point(possible_candidate_target_keypoint[i]->coordinate.first, possible_candidate_target_keypoint[i]->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(19,0,76), 1, cv::LINE_8);
-            cv::putText(copy_debug_visual_map, //target image
-                cv::format("%2.2f", possible_candidate_target_keypoint[i]->validation_angle), //text
-                cv::Point((int)possible_candidate_target_keypoint[i]->coordinate.first, (int)possible_candidate_target_keypoint[i]->coordinate.second), //top-left position
-                0, //font
-                0.2,
-                CV_RGB(255, 0, 0), //font color
-                1);
+            // cv::putText(copy_debug_visual_map, //target image
+            //     cv::format("%2.2f", possible_candidate_target_keypoint[i]->validation_angle), //text
+            //     cv::Point((int)possible_candidate_target_keypoint[i]->coordinate.first, (int)possible_candidate_target_keypoint[i]->coordinate.second), //top-left position
+            //     0, //font
+            //     0.2,
+            //     CV_RGB(255, 0, 0), //font color
+            //     1);
         }
 
         // 4
