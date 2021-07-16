@@ -582,11 +582,6 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
     return false;
 }
 
-// bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
-// {
-
-// }
-
 double Robot_system::calculateHValue(const Pair src, const Pair dest)
 {
 	// h is estimated with the two points distance formula
@@ -747,11 +742,6 @@ void Robot_system::from_global_path_to_keypoints_path(std::stack<Pair> Path)
         if(i > 0 && i < keypoints_path.size()-1) {keypoints_path[i].validation_angle = compute_validation_angle( keypoints_path[i-1].coordinate, \
                                                                                                         keypoints_path[i].coordinate, \      
                                                                                                         keypoints_path[i+1].coordinate);}
-    }
-
-    for(int i = 0; i < keypoints_path.size(); i++)
-    {
-        std::cout << "[VALIDATION_ANGLE:" << keypoints_path[i].validation_angle << std::endl;
     }
 }
 
@@ -976,6 +966,23 @@ void Robot_system::cellIsReach()
     }
 }
 
+bool Robot_system::destination_reach()
+{
+    /*
+        DESCRIPTION: This function will check if the destination is reach and 
+            clean all data using for this process for free memory.
+    */
+
+    if(keypoints_path[keypoints_path.size()-1].isReach)
+    {
+        robot_general_state = Robot_state().waiting;
+        keypoints_path.clear();
+        possible_candidate_target_keypoint.clear();
+        return true;
+    }
+
+    return false;
+}   
 // FONCTION MOTOR.
 void Robot_system::compute_motor_commande()
 {
@@ -1085,7 +1092,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
-        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
         from_3DW_to_2DM();
         if(robot_general_state == Robot_state().initialisation)
@@ -1150,8 +1157,10 @@ void Robot_system::thread_COMMANDE(int frequency)
             
             select_target_keypoint();
             cellIsReach();
-            compute_motor_commande();
 
+            /* Check if we destination keypoints is reach. */
+            if(destination_reach()) { robot_control.manual_new_command(0);}
+            else{ compute_motor_commande();}
         }
         if(robot_general_state == Robot_state().home)
         {
@@ -2450,7 +2459,7 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
     }
     else
     {
-        std::cout << "[WARNING] keypoints_path is empty or we are not in autonomous_nav mode." << std::endl;
+        // std::cout << "[WARNING] keypoints_path is empty or we are not in autonomous_nav mode." << std::endl;
     }
 }
 

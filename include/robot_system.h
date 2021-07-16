@@ -147,6 +147,7 @@ class Robot_system
         void select_target_keypoint();
         void return_nearest_path_keypoint(double threshold);
         void cellIsReach();
+        bool destination_reach();
 
         // FONCTION MOTOR.
         void compute_motor_commande();
