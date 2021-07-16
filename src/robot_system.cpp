@@ -429,7 +429,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 	// Create a closed list and initialise it to false which
 	// means that no cell has been included yet This closed
 	// list is implemented as a boolean 2D array
-	bool closedList[grid.rows][grid.cols];
+	bool closedList[grid.cols][grid.rows];
 	memset(closedList, false, sizeof(closedList));
 
 	// Declare a 2D array of structure to hold the details
@@ -437,8 +437,8 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
     // constexpr auto p = static_cast<int>(grid.cols);
     // const int pp = grid.rows;
 	// array<array<cell, COL>, ROW> cellDetails;
-    int cols = grid.cols;
-    int rows = grid.rows;
+    int cols = grid.rows;
+    int rows = grid.cols;
     
     std::vector<std::vector<cell>> cellDetails(rows, std::vector<cell>(cols));
 
@@ -448,6 +448,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 	cellDetails[i][j].f = 0.0;
 	cellDetails[i][j].g = 0.0;
 	cellDetails[i][j].h = 0.0;
+    cellDetails[i][j].t = 0.0;
 	cellDetails[i][j].parent = { i, j };
 
 	/*
@@ -469,11 +470,11 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 	// the destination is not reached.
     // high_resolution_clock::time_point t1 = high_resolution_clock::now();
 	while (!openList.empty()) {
+
 		const Tuple& p = openList.top();
 		// Add this vertex to the closed list
 		i = std::get<1>(p); // second element of tupla
 		j = std::get<2>(p); // third element of tupla
-
 		// Remove this vertex from the open list
 		openList.pop();
 		closedList[i][j] = true;
@@ -487,15 +488,15 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 						/ | \
 						S.W S S.E
 
-				Cell-->Popped Cell (i, j)
-				N --> North	 (i-1, j)
-				S --> South	 (i+1, j)
-				E --> East	 (i, j+1)
-				W --> West		 (i, j-1)
-				N.E--> North-East (i-1, j+1)
-				N.W--> North-West (i-1, j-1)
-				S.E--> South-East (i+1, j+1)
-				S.W--> South-West (i+1, j-1)
+				Cell --> Popped Cell   ( i  , j  )
+				N    --> North	       ( i-1, j  )
+				S    --> South	       ( i+1, j  )
+				E    --> East	       ( i  , j+1)
+				W    --> West	       ( i  , j-1)
+				N.E  --> North-East    ( i-1, j+1)
+				N.W  --> North-West    ( i-1, j-1)
+				S.E  --> South-East    ( i+1, j+1)
+				S.W  --> South-West    ( i+1, j-1)
 		*/
 		for (int add_x = -1; add_x <= 1; add_x++) {
 			for (int add_y = -1; add_y <= 1; add_y++) {
@@ -534,11 +535,15 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 					// ignore it. Else do the following
 					else if (!closedList[neighbour.first][neighbour.second] && isUnBlocked(grid, neighbour)) 
                     {
-						double gNew, hNew, fNew;
-						gNew = cellDetails[i][j].g + 1.0;
+						double gNew, hNew, fNew, tNew;
+                        if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 255)
+						    {gNew = cellDetails[i][j].g + 1.0;}
+                        if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 200)
+						    {gNew = cellDetails[i][j].g + 7.0;}
 						hNew = calculateHValue(neighbour, dest);
-						fNew = gNew + hNew;
+                        tNew = calculateHValue(neighbour, src);
 
+                        fNew = gNew + hNew + tNew;
 						// If it isn’t on the open list, add
 						// it to the open list. Make the
 						// current square the parent of this
@@ -555,9 +560,10 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 
 							// Update the details of this
 							// cell
-							cellDetails[neighbour.first][neighbour.second].g = gNew;
-							cellDetails[neighbour.first][neighbour.second].h = hNew;
-							cellDetails[neighbour.first][neighbour.second].f = fNew;
+							cellDetails[neighbour.first][neighbour.second].g      = gNew;
+							cellDetails[neighbour.first][neighbour.second].h      = hNew;
+							cellDetails[neighbour.first][neighbour.second].f      = fNew;
+                            cellDetails[neighbour.first][neighbour.second].t      = tNew;
 							cellDetails[neighbour.first][neighbour.second].parent = { i, j };
 						}
 					}
@@ -575,6 +581,11 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 	printf("Failed to find the Destination Cell\n");
     return false;
 }
+
+// bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
+// {
+
+// }
 
 double Robot_system::calculateHValue(const Pair src, const Pair dest)
 {
@@ -2397,7 +2408,7 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
         {
             if(!keypoints_path[i].isReach)
             {
-                cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(120,120,120), cv::FILLED, 1, 0);
+                cv::circle(copy_debug_visual_map, cv::Point(keypoints_path[i].coordinate.first, keypoints_path[i].coordinate.second),1, cv::Scalar(30,30,30), cv::FILLED, 1, 0);
             }
         }
 

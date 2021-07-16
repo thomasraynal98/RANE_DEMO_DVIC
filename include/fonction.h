@@ -340,12 +340,13 @@ struct cell {
     // Row and Column index of its parent
     Pair parent;
     // f = g + h
-    double f, g, h;
+    double f, g, h, t, w;
     cell()
         : parent()
         , f(-1)
         , g(-1)
         , h(-1)
+        , t(-1)
     {
     }
 };

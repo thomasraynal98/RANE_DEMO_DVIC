@@ -9,6 +9,8 @@ http://libserial.sourceforge.net/doxygen/class_serial_port.html#a6d063c5984b774b
 
 https://libserial.readthedocs.io/en/latest/tutorial.html
 
+https://www.redblobgames.com/pathfinding/a-star/introduction.html
+
 ## FEATURES AND BUGS
 * [BUG]       : fix bug 2 ports deconnexion.
 * [ADD]       : add all variable (voltage, etc...).
