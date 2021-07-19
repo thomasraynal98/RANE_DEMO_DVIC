@@ -31,6 +31,7 @@ validation distance and not in A* algorythme.
 * [ADD]       : smooth voltage sensor value.
 * [ADD]       : integrate smooth angle.
 * [BUG]       : the validation_angle on the target keypoint don't work. And they are some bug in angle compute but it's working.
+* [BUG]       : if robot pose is loin de la target alors bug. Surement du a la selection de nearest keypoint.
 
 ## INSTALLATION INFORMATION
 * sometime you need to chmod all ports for microcontrolers.

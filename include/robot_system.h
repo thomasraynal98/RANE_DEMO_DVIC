@@ -150,7 +150,7 @@ class Robot_system
         bool destination_reach();
 
         // FONCTION MOTOR.
-        void compute_motor_commande();
+        void compute_motor_autocommande();
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

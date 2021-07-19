@@ -105,10 +105,10 @@ Robot_system::Robot_system(std::string val_id)
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
-    // thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    // thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    // thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
@@ -118,12 +118,12 @@ Robot_system::Robot_system(std::string val_id)
 
     // debug_message_server();
 
-    // thread_1_localisation.join();
+    thread_1_localisation.join();
     thread_2_commande.join();
-    // thread_3_listener_MICROA.join();
-    // thread_4_speaker_MICROA.join();
-    // thread_5_listener_MICROB.join();
-    // thread_6_speaker_MICROB.join();
+    thread_3_listener_MICROA.join();
+    thread_4_speaker_MICROA.join();
+    thread_5_listener_MICROB.join();
+    thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
@@ -984,7 +984,7 @@ bool Robot_system::destination_reach()
     return false;
 }   
 // FONCTION MOTOR.
-void Robot_system::compute_motor_commande()
+void Robot_system::compute_motor_autocommande()
 {
     /*
         DESCRIPTION: this function will compute the new commande for motor
@@ -992,37 +992,58 @@ void Robot_system::compute_motor_commande()
             command is different of the last one.
     */
 
-    // this variable is maybe already compute.
-    Pair kp_destination(target_keypoint->coordinate.first, target_keypoint->coordinate.second);
-    double angle_direction = compute_vector_RKP(kp_destination);
-    double current_angle   = robot_position.euler.y;
-    double distance_deg    = 0;
-    double threshold_angle = 20;
+    /* target_angle variable is good but is it between 0 and 180 degres.
+    We don't know if we need to go left or right so we recompute a version on target angle
+    between -180 and 180.*/
 
-    if(int(current_angle - angle_direction) % 360 > 180)
+    double angle_ORIENTATION = robot_position.pixel.y_pixel;
+    double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
+
+    double distance_deg      = target_keypoint->target_angle;
+    /* Reflechir à une maniere to integrate other variable in this calcule, like speed 
+    or area type. */
+    double dynamic_threshold = 10;
+    
+    if(distance_deg > dynamic_threshold)
     {
-        distance_deg = 360 - (int(current_angle - angle_direction) % 360);
-        if(distance_deg > threshold_angle)
+        /* Can't go forward, need to rotate or be smooth. */
+        if(angle_ORIENTATION <= angle_RKP)
         {
-            // Turn left.
+            if(angle_RKP - angle_ORIENTATION <= 180)
+            {
+                // Right.
+                robot_control.manual_new_command(4);
+
+            }
+            else
+            {
+                // Left.
+                robot_control.manual_new_command(3);
+            }
         }
         else
         {
-            // Go forward.
+            if(angle_ORIENTATION - angle_RKP <= 180)
+            {
+                // Left.
+                robot_control.manual_new_command(3);
+            }
+            else
+            {
+                // Right.
+                robot_control.manual_new_command(4);
+            }
         }
     }
     else
     {
-        distance_deg = int(current_angle - angle_direction) % 360;
-        if(distance_deg > threshold_angle)
-        {
-            // Turn right.
-        }
-        else
-        {
-            // Go forward.
-        }
+        // Forward.
+        robot_control.manual_new_command(1);
     }
+
+    // TODO : 
+    // std::cout << "[target_keypoint->target_angle] "<< target_keypoint->target_angle << "\n";
+    std::cout << "[message_for_A] " << robot_control.message_microcontrolerA << "\n";
 }
 
 // THREAD.
@@ -1092,7 +1113,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
         from_3DW_to_2DM();
         if(robot_general_state == Robot_state().initialisation)
@@ -1155,12 +1176,17 @@ void Robot_system::thread_COMMANDE(int frequency)
                     target_keypoint and send command to all different motor.
             */
             
+            /* Select current target keypoint and check if we reach them. */
             select_target_keypoint();
             cellIsReach();
 
-            /* Check if we destination keypoints is reach. */
+            /* Check if we destination keypoints is reach. 
+            Else, compute motor commande. */
             if(destination_reach()) { robot_control.manual_new_command(0);}
-            else{ compute_motor_commande();}
+            else{ compute_motor_autocommande();}
+
+            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
+            if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
         }
         if(robot_general_state == Robot_state().home)
         {
@@ -1340,7 +1366,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                 catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                 catch(std::runtime_error ex){}
                 
-                // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
             // for Microcontroler B.
             if(micro_name == "B")
@@ -1355,7 +1381,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                     catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                     catch(std::runtime_error ex){}
                     
-                    // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                    // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
                 }
 
                 //TODO: make this beautiful.
@@ -1486,28 +1512,31 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                 PROTECTION CHECKING: We will shake if robot can continue in this
                                     way. TODO: add checking for autonomous mode.
                             */
-                            std::cout << "[PRO:" << robot_control.manual_commande_message << "\n";
-                            if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
+                            // std::cout << "[PRO:" << robot_control.manual_commande_message << "\n";
+                            if(robot_general_state == Robot_state().manual)
                             {
-                                /* want to go forward but is blocked. */
-                                std::cout << "[STOP]\n";
-                                robot_control.manual_new_command(0);
-                                robot_control.compute_message_microA();
-                                robot_control.compute_message_microB();
-                                robot_control.isTransmitA = false;
-                                robot_control.isTransmitB = false;
-                                // robot_general_state == Robot_state().warning
-                            }
-                            if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
-                            {
-                                /* want to go backward but is blocked. */
-                                std::cout << "[STOP]\n";
-                                robot_control.manual_new_command(0);
-                                robot_control.compute_message_microA();
-                                robot_control.compute_message_microB();
-                                robot_control.isTransmitA = false;
-                                robot_control.isTransmitB = false;
-                                // robot_general_state == Robot_state().warning
+                                if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
+                                {
+                                    /* want to go forward but is blocked. */
+                                    std::cout << "[STOP]" << std::endl;
+                                    robot_control.manual_new_command(0);
+                                    robot_control.compute_message_microA();
+                                    robot_control.compute_message_microB();
+                                    robot_control.isTransmitA = false;
+                                    robot_control.isTransmitB = false;
+                                    // robot_general_state == Robot_state().warning
+                                }
+                                if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
+                                {
+                                    /* want to go backward but is blocked. */
+                                    std::cout << "[STOP]" << std::endl;
+                                    robot_control.manual_new_command(0);
+                                    robot_control.compute_message_microA();
+                                    robot_control.compute_message_microB();
+                                    robot_control.isTransmitA = false;
+                                    robot_control.isTransmitB = false;
+                                    // robot_general_state == Robot_state().warning
+                                }
                             }
                         }
                     }
@@ -1545,6 +1574,7 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         last_loop_time             = x;
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
+
         // END TIMING VARIABLE.
         // std::cout << "[THREAD-7]\n";
 
@@ -1558,6 +1588,8 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         destination_point.second = 76;
         robot_general_state = Robot_state().compute_nav;
         std::cout << robot_general_state << std::endl;
+        // robot_control.manual_commande_message = rien;
+        // robot_general_state = Robot_state().manual;
     }
 }
 
