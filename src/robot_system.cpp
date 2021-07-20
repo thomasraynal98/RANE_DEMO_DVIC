@@ -75,23 +75,6 @@ Robot_system::Robot_system(std::string val_id)
     *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
     *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
 
-    //TODO: BRUTE
-    bool var = false;
-    robot_control.direction.m1L_s = var;
-    robot_control.motor.m1L = 255;
-    robot_control.direction.m2L_s = var;
-    robot_control.motor.m2L = 255;
-    robot_control.direction.m3L_s = var;
-    robot_control.motor.m3L = 255;
-    robot_control.direction.m1R_s = var;
-    robot_control.motor.m1R = 255;
-    robot_control.direction.m2R_s = var;
-    robot_control.motor.m2R = 255;
-    robot_control.direction.m3R_s = var;
-    robot_control.motor.m3R = 255;
-    robot_control.servo.SL = 255;
-    robot_control.servo.SR = 255;
-
     // initialisation all thread.
     thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_2_last_hz_update   = std::chrono::high_resolution_clock::now();
@@ -127,7 +110,6 @@ Robot_system::Robot_system(std::string val_id)
     thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
-
 }
 
 Robot_state::Robot_state()
@@ -983,6 +965,78 @@ bool Robot_system::destination_reach()
 
     return false;
 }   
+
+void Robot_system::manual_mode_security_sensor()
+{
+    /*
+        DESCRIPTION: this function is use in thread_command in manual mode
+            and will shake if the path is clear for user command.
+    */
+
+    if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front(150, thread_2_hz).size() > 0))
+    {
+        /* want to go forward but is blocked. */
+        std::cout << "[STOP]" << std::endl;
+        robot_control.manual_new_command(0);
+        robot_control.compute_message_microA();
+        robot_control.compute_message_microB();
+        robot_control.isTransmitA = false;
+        robot_control.isTransmitB = false;
+    }
+    if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back(150, thread_2_hz).size() > 0))
+    {
+        /* want to go backward but is blocked. */
+        std::cout << "[STOP]" << std::endl;
+        robot_control.manual_new_command(0);
+        robot_control.compute_message_microA();
+        robot_control.compute_message_microB();
+        robot_control.isTransmitA = false;
+        robot_control.isTransmitB = false;
+    }
+}
+
+void Robot_system::autonomous_mode_ultrasonic_integration()
+{
+    /*
+        DESCRIPTION: this function is call in thread_command when we are in
+            autonomous mode and integrate ultrasonic sensor data to the 
+            general algorythme process and add the wall follow process.
+    */
+    double angle_threshold = 60.0;
+
+    proximity_sensor_detection_front(300.0, thread_2_hz);
+    proximity_sensor_detection_back(300.0, thread_2_hz);
+
+    // /* Fixe or mobile obstacle in front-direct or back-direct. */
+    // if(robot_sensor_data.ultra_obstacle.itFrontBlock && \ 
+    // (manual_commande_message == 1 || manual_commande_message == 5 || \
+    //  manual_commande_message == 6))
+    // {
+    //     /* Check if obstacle is in keypoint_target trajectory. 
+    //     (why) if the robot need to turn now du of target angle
+    //     it will automaticly avoid the obstacle. */
+    //     if(target_keypoint->target_angle <= angle_threshold)
+    //     {
+    //         /* Check if we are in corridor special disposition. */
+
+    //         /* We are not in corridor special disposition so 
+    //         wait 1500ms and see if the obstacle it's a non-fixe
+    //         obstacle like humain. */
+    //     }
+    // }
+
+    /* Detect if we are in CORIDOR option. */
+    if(robot_sensor_data.detect_corridor_situation())
+    {
+
+    }
+
+    /* Detect if we are forward in a wall. */
+    
+    /* If not, check if we are obstacle in front or back, depending about direction. */
+    /* Wait sometime if it's a mobile obstacle like human. if not recompute path. */
+}
+
 // FONCTION MOTOR.
 void Robot_system::compute_motor_autocommande()
 {
@@ -1040,10 +1094,6 @@ void Robot_system::compute_motor_autocommande()
         // Forward.
         robot_control.manual_new_command(1);
     }
-
-    // TODO : 
-    // std::cout << "[target_keypoint->target_angle] "<< target_keypoint->target_angle << "\n";
-    std::cout << "[message_for_A] " << robot_control.message_microcontrolerA << "\n";
 }
 
 // THREAD.
@@ -1185,6 +1235,10 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(destination_reach()) { robot_control.manual_new_command(0);}
             else{ compute_motor_autocommande();}
 
+            /* Introduce the ultrasonsensor. If condition are together,
+            maybe this part will compute a new motor autocommande. */
+            autonomous_mode_ultrasonic_integration();
+
             if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
             if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
         }
@@ -1231,6 +1285,8 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
             if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
 
+            /*  Security check. */
+            manual_mode_security_sensor();
         }
         if(robot_general_state == Robot_state().warning)
         {
@@ -1513,31 +1569,31 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                     way. TODO: add checking for autonomous mode.
                             */
                             // std::cout << "[PRO:" << robot_control.manual_commande_message << "\n";
-                            if(robot_general_state == Robot_state().manual)
-                            {
-                                if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
-                                {
-                                    /* want to go forward but is blocked. */
-                                    std::cout << "[STOP]" << std::endl;
-                                    robot_control.manual_new_command(0);
-                                    robot_control.compute_message_microA();
-                                    robot_control.compute_message_microB();
-                                    robot_control.isTransmitA = false;
-                                    robot_control.isTransmitB = false;
-                                    // robot_general_state == Robot_state().warning
-                                }
-                                if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
-                                {
-                                    /* want to go backward but is blocked. */
-                                    std::cout << "[STOP]" << std::endl;
-                                    robot_control.manual_new_command(0);
-                                    robot_control.compute_message_microA();
-                                    robot_control.compute_message_microB();
-                                    robot_control.isTransmitA = false;
-                                    robot_control.isTransmitB = false;
-                                    // robot_general_state == Robot_state().warning
-                                }
-                            }
+                            // if(robot_general_state == Robot_state().manual)
+                            // {
+                            //     if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
+                            //     {
+                            //         /* want to go forward but is blocked. */
+                            //         std::cout << "[STOP]" << std::endl;
+                            //         robot_control.manual_new_command(0);
+                            //         robot_control.compute_message_microA();
+                            //         robot_control.compute_message_microB();
+                            //         robot_control.isTransmitA = false;
+                            //         robot_control.isTransmitB = false;
+                            //         // robot_general_state == Robot_state().warning
+                            //     }
+                            //     if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
+                            //     {
+                            //         /* want to go backward but is blocked. */
+                            //         std::cout << "[STOP]" << std::endl;
+                            //         robot_control.manual_new_command(0);
+                            //         robot_control.compute_message_microA();
+                            //         robot_control.compute_message_microB();
+                            //         robot_control.isTransmitA = false;
+                            //         robot_control.isTransmitB = false;
+                            //         // robot_general_state == Robot_state().warning
+                            //     }
+                            // }
                         }
                     }
                     catch(...)

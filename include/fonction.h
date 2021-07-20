@@ -271,32 +271,93 @@ struct Robot_sensor
         double ulF0{0}, ulF1{0}, ulF2{0}, ulF3{0};
         double ulB0{0}, ulB1{0}, ulB2{0};
     } ultrasonic;
+
+    struct Ultrasonic_detection
+    {
+        int nbulF0{0}, nbulF1{0}, nbulF2{0}, nbulF3{0};
+        int nbulB0{0}, nbulB1{0}, nbulB2{0};
+    } ultra_detect;
+
+    struct Ultrasonic_obstacle
+    {
+        bool obsulF0{0}, obsulF1{0}, obsulF2{0}, obsulF3{0};
+        bool obsulB0{0}, obsulB1{0}, obsulB2{0};
+    } ultra_obstacle;
+
     struct Energy
     {
         double voltage{0};
         double current{0};
     } energy;
 
-    int proximity_sensor_detection_front()
+    struct Detection_analyse
     {
-        /* Check if a sensor is blocked. */
+        bool isInCorridorMode{false};
+    } detection_analyse;
 
-        double threshold = 100; //mm
-        if(ultrasonic.ulF0 < threshold) { return 1;}
-        if(ultrasonic.ulF1 < threshold) { return 2;}
-        if(ultrasonic.ulF2 < threshold) { return 3;}
-        if(ultrasonic.ulF3 < threshold) { return 4;}
-        return 0;
+    std::vector<int> proximity_sensor_detection_front(int threshold_direct, int threshold_latera, double frequency)
+    {   
+        // threshold in mm.
+        /* Check if a sensor is blocked in front. */
+
+        std::vector<int> obstacle_position;
+        int threshold_comptor           = frequency / 4; // it's like say 250ms.
+
+        if(ultrasonic.ulF0 < threshold_latera && ultrasonic.ulF0 != 0) { ultra_detect.nbulF0 += 1;}
+        else{ if(ultrasonic.ulF0 != 0) {ultra_detect.nbulF0 = 0;}}
+        if(ultrasonic.ulF1 < threshold_direct && ultrasonic.ulF1 != 0) { ultra_detect.nbulF1 += 1;}
+        else{ if(ultrasonic.ulF1 != 0) {ultra_detect.nbulF1 = 0;}}
+        if(ultrasonic.ulF2 < threshold_direct && ultrasonic.ulF2 != 0) { ultra_detect.nbulF2 += 1;}
+        else{ if(ultrasonic.ulF2 != 0) {ultra_detect.nbulF2 = 0;}}
+        if(ultrasonic.ulF3 < threshold_latera && ultrasonic.ulF3 != 0) { ultra_detect.nbulF3 += 1;}
+        else{ if(ultrasonic.ulF3 != 0) {ultra_detect.nbulF3 = 0;}}
+        if(ultrasonic.ulB0 < threshold_latera && ultrasonic.ulB0 != 0) { ultra_detect.nbulB0 += 1;}
+        else{ if(ultrasonic.ulB0 != 0) {ultra_detect.nbulB0 = 0;}}
+        if(ultrasonic.ulB1 < threshold_direct && ultrasonic.ulB1 != 0) { ultra_detect.nbulB1 += 1;}
+        else{ if(ultrasonic.ulB1 != 0) {ultra_detect.nbulB1 = 0;}}
+        if(ultrasonic.ulB2 < threshold_latera && ultrasonic.ulB2 != 0) { ultra_detect.nbulB2 += 1;}
+        else{ if(ultrasonic.ulB2 != 0) {ultra_detect.nbulB2 = 0;}}
+
+        /* Update Ultrasonic_obstacle detection. */
+        if(ultra_detect.nbulF0 >= threshold_comptor){ ultra_obstacle.obsulF0 = true; obstacle_position.push_back(0);}
+        else{ ultra_obstacle.obsulF0 = false;}
+        if(ultra_detect.nbulF1 >= threshold_comptor){ ultra_obstacle.obsulF1 = true; obstacle_position.push_back(1);}
+        else{ ultra_obstacle.obsulF1 = false;}
+        if(ultra_detect.nbulF2 >= threshold_comptor){ ultra_obstacle.obsulF2 = true; obstacle_position.push_back(2);}
+        else{ ultra_obstacle.obsulF2 = false;}
+        if(ultra_detect.nbulF3 >= threshold_comptor){ ultra_obstacle.obsulF3 = true; obstacle_position.push_back(3);}
+        else{ ultra_obstacle.obsulF3 = false;}
+        if(ultra_detect.nbulB0 >= threshold_comptor){ ultra_obstacle.obsulB0 = true; obstacle_position.push_back(4);}
+        else{ ultra_obstacle.obsulB0 = false;}
+        if(ultra_detect.nbulB1 >= threshold_comptor){ ultra_obstacle.obsulB1 = true; obstacle_position.push_back(5);}
+        else{ ultra_obstacle.obsulB1 = false;}
+        if(ultra_detect.nbulB2 >= threshold_comptor){ ultra_obstacle.obsulB2 = true; obstacle_position.push_back(6);}
+        else{ ultra_obstacle.obsulB2 = false;}
+        
+        return obstacle_position;
     }
-    int proximity_sensor_detection_back()
-    {
-        /* Check if a sensor is blocked. */
 
-        double threshold = 100; //mm
-        if(ultrasonic.ulB0 < threshold) { return 5;}
-        if(ultrasonic.ulB1 < threshold) { return 6;}
-        if(ultrasonic.ulB2 < threshold) { return 7;}
-        return 0;
+    bool detect_corridor_situation(double threshold)
+    {
+        /*
+            DESCRIPTION: this important function will detect an
+            corridor situation and update isInCorridorMode.
+        */
+
+        int block_number = 0;
+
+        if(ultra_obstacle.obsulF0) { block_number += 1;}
+        if(ultra_obstacle.obsulF3) { block_number += 1;}
+        if(ultra_obstacle.obsulB0) { block_number += 1;}
+        if(ultra_obstacle.obsulB2) { block_number += 1;}
+
+        if(block_number >= 2)
+        {
+            detection_analyse.isInCorridorMode = true;
+            return true;
+        }
+        detection_analyse.isInCorridorMode = false;
+        return false;
     }
 };
 

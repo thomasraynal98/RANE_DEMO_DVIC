@@ -148,6 +148,8 @@ class Robot_system
         void return_nearest_path_keypoint(double threshold);
         void cellIsReach();
         bool destination_reach();
+        void manual_mode_security_sensor();
+        void autonomous_mode_ultrasonic_integration();
 
         // FONCTION MOTOR.
         void compute_motor_autocommande();
