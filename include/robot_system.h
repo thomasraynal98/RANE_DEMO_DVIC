@@ -149,6 +149,7 @@ class Robot_system
         void cellIsReach();
         bool destination_reach();
         void manual_mode_security_sensor();
+        bool isInVect(std::vector<int> vector, int stuf);
         void autonomous_mode_ultrasonic_integration();
 
         // FONCTION MOTOR.

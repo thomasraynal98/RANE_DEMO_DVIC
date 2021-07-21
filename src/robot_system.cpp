@@ -966,6 +966,15 @@ bool Robot_system::destination_reach()
     return false;
 }   
 
+bool Robot_system::isInVect(std::vector<int> vector, int stuf)
+{
+    for(auto value : vector)
+    {
+        if(value == stuf) return true;
+    }
+    return false;
+}
+
 void Robot_system::manual_mode_security_sensor()
 {
     /*
@@ -973,7 +982,10 @@ void Robot_system::manual_mode_security_sensor()
             and will shake if the path is clear for user command.
     */
 
-    if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front(150, thread_2_hz).size() > 0))
+    auto obs_detect = robot_sensor_data.proximity_sensor_detection(150.0, 150.0, thread_2_hz);
+
+    if(robot_control.goForward && (isInVect(obs_detect, 0) || isInVect(obs_detect, 1) || \
+    isInVect(obs_detect, 2) || isInVect(obs_detect, 3)))
     {
         /* want to go forward but is blocked. */
         std::cout << "[STOP]" << std::endl;
@@ -983,7 +995,8 @@ void Robot_system::manual_mode_security_sensor()
         robot_control.isTransmitA = false;
         robot_control.isTransmitB = false;
     }
-    if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back(150, thread_2_hz).size() > 0))
+    if(robot_control.goBackward && (isInVect(obs_detect, 4) || isInVect(obs_detect, 5) || \
+    isInVect(obs_detect, 6)))
     {
         /* want to go backward but is blocked. */
         std::cout << "[STOP]" << std::endl;
@@ -1002,39 +1015,128 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             autonomous mode and integrate ultrasonic sensor data to the 
             general algorythme process and add the wall follow process.
     */
-    double angle_threshold = 60.0;
+    double angle_threshold = 40.0; //en deg.
+    double diff_threshold = 300.0; //difference threshold.
 
-    proximity_sensor_detection_front(300.0, thread_2_hz);
-    proximity_sensor_detection_back(300.0, thread_2_hz);
-
-    // /* Fixe or mobile obstacle in front-direct or back-direct. */
-    // if(robot_sensor_data.ultra_obstacle.itFrontBlock && \ 
-    // (manual_commande_message == 1 || manual_commande_message == 5 || \
-    //  manual_commande_message == 6))
-    // {
-    //     /* Check if obstacle is in keypoint_target trajectory. 
-    //     (why) if the robot need to turn now du of target angle
-    //     it will automaticly avoid the obstacle. */
-    //     if(target_keypoint->target_angle <= angle_threshold)
-    //     {
-    //         /* Check if we are in corridor special disposition. */
-
-    //         /* We are not in corridor special disposition so 
-    //         wait 1500ms and see if the obstacle it's a non-fixe
-    //         obstacle like humain. */
-    //     }
-    // }
+    /* Update proximity sensor information. */
+    robot_sensor_data.proximity_sensor_detection(300.0, 600.0, thread_2_hz);
 
     /* Detect if we are in CORIDOR option. */
-    if(robot_sensor_data.detect_corridor_situation())
+    if(robot_sensor_data.detect_corridor_situation() && \
+    (target_keypoint->target_angle <= angle_threshold))
     {
+        /* Check the current CORIDOR option configuration. */
+        int cfg_corridor = robot_sensor_data.get_corridor_configuration();
+
+        /* Front configuration. */
+        if(cfg_corridor == 0)
+        {
+            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold+100.0 < robot_sensor_data.ultrasonic.ulF3)
+            {
+                // Are currently going to the wall. Smooth turn left.
+                robot_control.manual_new_command(5);
+            }
+            else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold+100.0 < robot_sensor_data.ultrasonic.ulF0)
+            {
+                // Are currently moving away the wall. Smooth turn right.
+                robot_control.manual_new_command(6);
+            }
+        }
+
+        /* back configuration.  */
+        if(cfg_corridor == 1)
+        {
+            // no code required.
+        }
+        
+        /* Left configuration.  */
+        if(cfg_corridor == 2)
+        {
+            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold < robot_sensor_data.ultrasonic.ulB0)
+            {
+                // Are currently going to the wall. Smooth turn right.
+                robot_control.manual_new_command(6);
+            }
+            else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
+            {
+                // Are currently moving away the wall. Smooth turn left.
+                robot_control.manual_new_command(5);
+            }
+        }
+        
+        /* Right configuration. */
+        if(cfg_corridor == 3)
+        {
+            if(robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulB2)
+            {
+                // Are currently going to the wall. Smooth turn left.
+                robot_control.manual_new_command(5);
+            }
+            else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
+            {
+                // Are currently moving away the wall. Smooth turn right.
+                robot_control.manual_new_command(6);
+            }
+        }
+
+        /* Diagonal left configuration.  */
+        if(cfg_corridor == 4)
+        {
+            // no code required.
+        }
+
+        /* Diagonal right configuration. */
+        if(cfg_corridor == 5)
+        {
+            // no code required.
+        }
 
     }
 
     /* Detect if we are forward in a wall. */
-    
-    /* If not, check if we are obstacle in front or back, depending about direction. */
-    /* Wait sometime if it's a mobile obstacle like human. if not recompute path. */
+    robot_sensor_data.detect_wall_situation();
+    if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && \
+    (robot_sensor_data.detection_analyse.isWallDetectionLeft || \
+    robot_sensor_data.detection_analyse.isWallDetectionRight))
+    {
+        if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
+        {
+            /* We have a wall on a left. */
+            robot_control.manual_new_command(6);
+        }
+        if(robot_sensor_data.detection_analyse.isWallDetectionRight)
+        {
+            /* We have a wall on a right. */
+            robot_control.manual_new_command(5);
+        }
+    }
+
+    /* Safety check. */
+    double safety_threshold = 100.0; // en mm.
+    if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
+    ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
+    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && robot_control.goForward)
+    {
+        if(!(robot_sensor_data.detection_analyse.isSecurityStop))
+        {
+            robot_control.manual_new_command(0); //stop.
+            robot_sensor_data.detection_analyse.isSecurityStop = true;
+            robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
+        }
+    }
+    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
+    if((robot_sensor_data.ultra_obstacle.obsulB1) && \
+    robot_sensor_data.ultrasonic.ulB1 < safety_threshold && \ 
+    robot_control.goBackward)
+    {
+        if(!(robot_sensor_data.detection_analyse.isSecurityStop))
+        {
+            robot_control.manual_new_command(0); //stop.
+            robot_sensor_data.detection_analyse.isSecurityStop = true;
+            robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
+        }
+    }
+    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
 }
 
 // FONCTION MOTOR.
@@ -1238,6 +1340,14 @@ void Robot_system::thread_COMMANDE(int frequency)
             /* Introduce the ultrasonsensor. If condition are together,
             maybe this part will compute a new motor autocommande. */
             autonomous_mode_ultrasonic_integration();
+
+            /* Check if we have security stop this enought time. */
+            auto now = std::chrono::high_resolution_clock::now();
+            robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
+            if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
+            {
+                /* Next_code. */
+            }
 
             if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
             if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}

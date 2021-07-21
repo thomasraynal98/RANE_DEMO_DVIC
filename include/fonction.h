@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <chrono>
 
 typedef std::pair<int, int> Pair;
 typedef std::tuple<double, int, int> Tuple;
@@ -55,6 +56,8 @@ struct Robot_control
     int manual_commande_message{0};
     std::string message_microcontrolerA{""};
     std::string message_microcontrolerB{""};
+    bool goForward{false};
+    bool goBackward{false};
 
     bool operator==(Robot_control& ctr2)
     {
@@ -152,6 +155,9 @@ struct Robot_control
             // STOP SERVO
             servo.SL = 0;
             servo.SR = 0;
+
+            goForward = false;
+            goBackward = false;
         }
         if(command == 1)
         {
@@ -168,6 +174,9 @@ struct Robot_control
             direction.m3L_s = 0;
             motor.m3R = 255;
             direction.m3R_s = 0;
+
+            goForward = true;
+            goBackward = false;
         }
         if(command == 2)
         {
@@ -184,6 +193,9 @@ struct Robot_control
             direction.m3L_s = 1;
             motor.m3R = 255;
             direction.m3R_s = 1;
+
+            goForward = false;
+            goBackward = true;
         }
         if(command == 3)
         {
@@ -200,6 +212,9 @@ struct Robot_control
             direction.m3L_s = 0;
             motor.m3R = 255;
             direction.m3R_s = 1;
+
+            goForward = false;
+            goBackward = false;
         }
         if(command == 4)
         {
@@ -216,6 +231,9 @@ struct Robot_control
             direction.m3L_s = 1;
             motor.m3R = 255;
             direction.m3R_s = 0;
+
+            goForward = false;
+            goBackward = false;
         }
         if(command == 5)
         {
@@ -232,6 +250,9 @@ struct Robot_control
             direction.m3L_s = 0;
             motor.m3R = 255;
             direction.m3R_s = 0;
+
+            goForward = true;
+            goBackward = false;
         }
         if(command == 6)
         {
@@ -248,6 +269,9 @@ struct Robot_control
             direction.m3L_s = 0;
             motor.m3R = 120;
             direction.m3R_s = 0;
+
+            goForward = true;
+            goBackward = false;
         }
         if(command == 7)
         {
@@ -266,6 +290,13 @@ struct Robot_control
 
 struct Robot_sensor
 {
+    struct Architecture
+    {
+        double angle_ultrasensor{45.0};
+        double space_between_front_sensor{300.0};
+        double space_between_front_lateral{20.0};
+    } architecture;
+
     struct Ultrasonic
     {
         double ulF0{0}, ulF1{0}, ulF2{0}, ulF3{0};
@@ -292,13 +323,25 @@ struct Robot_sensor
 
     struct Detection_analyse
     {
+        bool isSecurityStop{false};
         bool isInCorridorMode{false};
+        bool isWallDetectionLeft{false};
+        bool isWallDetectionRight{false};
+        std::chrono::high_resolution_clock::time_point time_stop;
+        std::chrono::duration<double, std::milli> elapsed_time_since_stop;
+        int wait_time_after_stop{1500}; //en ms
     } detection_analyse;
 
-    std::vector<int> proximity_sensor_detection_front(int threshold_direct, int threshold_latera, double frequency)
+    std::vector<int> proximity_sensor_detection(int threshold_direct, int threshold_latera, double frequency)
     {   
-        // threshold in mm.
-        /* Check if a sensor is blocked in front. */
+        /* INPUT:
+        threshold_direct  : threshold de detection d'obstacle frontale et arrière. (en mm)
+        threshold_latera  : threshold de detection lateral FL/FR/BL/BR. (en mm)
+        frequency         : to generate the threshold_comptor. (en Hz)
+
+          OUTPUT: 
+        obstacle_position : return vector of id of obstrued ultrason sensor.
+        */
 
         std::vector<int> obstacle_position;
         int threshold_comptor           = frequency / 4; // it's like say 250ms.
@@ -337,7 +380,7 @@ struct Robot_sensor
         return obstacle_position;
     }
 
-    bool detect_corridor_situation(double threshold)
+    bool detect_corridor_situation()
     {
         /*
             DESCRIPTION: this important function will detect an
@@ -358,6 +401,74 @@ struct Robot_sensor
         }
         detection_analyse.isInCorridorMode = false;
         return false;
+    }
+
+    int get_corridor_configuration()
+    {
+        /*
+            DESCRIPTION: we need to know, witch kind of configuration
+            corridor we are actually.
+            VARIABLE:
+            (0) = Front
+            (1) = Back
+            (2) = Left
+            (3) = Right
+            (4) = Diagonal Left
+            (5) = Diagonal Right
+            (-1)= Error
+        */
+
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF3 && (ultrasonic.ulF0 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulF3 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2)) { return 0;}
+        if(ultra_obstacle.obsulB0 && ultra_obstacle.obsulB2 && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulF3) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulF3)) { return 1;}
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB0 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF3 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { return 2;}
+        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB2 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { return 3;}
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB2 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF3 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { return 4;}
+        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB0 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { return 5;}
+
+        return -1;
+    }
+
+    bool detect_wall_situation()
+    {
+        /*
+            DESCRIPTION: this function will detect if we are
+            going into a wall.
+        */
+
+        double D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF0 ;
+        double estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF1);
+        double threshold_area  = 80.0;
+
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF1 && \
+        ultra_obstacle.obsulF2)
+        {
+            if(ultrasonic.ulF2 >= (estimation_area - threshold_area) && \
+            ultrasonic.ulF2 <= (estimation_area + threshold_area))
+            {
+                detection_analyse.isWallDetectionLeft = true;
+            }
+            else
+            {
+                detection_analyse.isWallDetectionLeft = false;
+            }
+        }
+
+        D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF3 ;
+        estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF2);
+
+        if(ultra_obstacle.obsulF1 && ultra_obstacle.obsulF2 && \
+        ultra_obstacle.obsulF3)
+        {
+            if(ultrasonic.ulF1 >= (estimation_area - threshold_area) && \
+            ultrasonic.ulF1 <= (estimation_area + threshold_area))
+            {
+                detection_analyse.isWallDetectionRight = true;
+            }
+            else
+            {
+                detection_analyse.isWallDetectionRight = false;
+            }
+        }
     }
 };
 
