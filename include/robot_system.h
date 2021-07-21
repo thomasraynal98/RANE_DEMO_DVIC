@@ -75,6 +75,7 @@ class Robot_system
         // VARIABLE DEBUG.
         cv::Mat debug_visual_map;
         cv::Mat debug_sensor;
+        cv::Mat debug_autonomous_ultra;
 
         // VARIABLE INTERNE SENSOR.
         int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
@@ -170,6 +171,7 @@ class Robot_system
         void debug_message_server();
         void debug_init_debug_map();
         void debug_init_sensor();
+        void debug_autonav(cv::Mat image);
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

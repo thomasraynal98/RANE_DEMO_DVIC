@@ -50,7 +50,7 @@ Robot_system::Robot_system(std::string val_id)
     fan_power                 = -1;
 
     // initialisation SLAM.
-    init_slam_sdk();
+    // init_slam_sdk();
 
     // initialisation map and points (TODO: in the future, no points will be in computer
     // only send from server).
@@ -86,7 +86,7 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
@@ -101,7 +101,7 @@ Robot_system::Robot_system(std::string val_id)
 
     // debug_message_server();
 
-    thread_1_localisation.join();
+    // thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
@@ -1035,11 +1035,13 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             {
                 // Are currently going to the wall. Smooth turn left.
                 robot_control.manual_new_command(5);
+                robot_control.origin_commande = 2;
             }
             else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold+100.0 < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn right.
                 robot_control.manual_new_command(6);
+                robot_control.origin_commande = 2;
             }
         }
 
@@ -1056,11 +1058,13 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             {
                 // Are currently going to the wall. Smooth turn right.
                 robot_control.manual_new_command(6);
+                robot_control.origin_commande = 2;
             }
             else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn left.
                 robot_control.manual_new_command(5);
+                robot_control.origin_commande = 2;
             }
         }
         
@@ -1071,11 +1075,13 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             {
                 // Are currently going to the wall. Smooth turn left.
                 robot_control.manual_new_command(5);
+                robot_control.origin_commande = 2;
             }
             else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn right.
                 robot_control.manual_new_command(6);
+                robot_control.origin_commande = 2;
             }
         }
 
@@ -1103,11 +1109,13 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         {
             /* We have a wall on a left. */
             robot_control.manual_new_command(6);
+            robot_control.origin_commande = 3;
         }
         if(robot_sensor_data.detection_analyse.isWallDetectionRight)
         {
             /* We have a wall on a right. */
             robot_control.manual_new_command(5);
+            robot_control.origin_commande = 4;
         }
     }
 
@@ -1120,6 +1128,7 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         if(!(robot_sensor_data.detection_analyse.isSecurityStop))
         {
             robot_control.manual_new_command(0); //stop.
+            robot_control.origin_commande                      = 5;
             robot_sensor_data.detection_analyse.isSecurityStop = true;
             robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
         }
@@ -1132,6 +1141,7 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         if(!(robot_sensor_data.detection_analyse.isSecurityStop))
         {
             robot_control.manual_new_command(0); //stop.
+            robot_control.origin_commande                      = 5;
             robot_sensor_data.detection_analyse.isSecurityStop = true;
             robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
         }
@@ -1196,6 +1206,8 @@ void Robot_system::compute_motor_autocommande()
         // Forward.
         robot_control.manual_new_command(1);
     }
+
+    robot_control.origin_commande = 1;
 }
 
 // THREAD.
@@ -1334,7 +1346,7 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Check if we destination keypoints is reach. 
             Else, compute motor commande. */
-            if(destination_reach()) { robot_control.manual_new_command(0);}
+            if(destination_reach()) { robot_control.manual_new_command(0); robot_control.origin_commande = 1;}
             else{ compute_motor_autocommande();}
 
             /* Introduce the ultrasonsensor. If condition are together,
@@ -2288,6 +2300,158 @@ cv::Scalar Robot_system::get_color_ultrasonic(double value)
     }
 }
 
+void Robot_system::debug_autonav(cv::Mat image)
+{
+    /*
+        DESCRIPTION: this function will draw the autonav debug windows.
+    */
+
+    // add text.
+    cv::putText(image, //target image
+    "SLAM MODE", //text
+    cv::Point(10, 35), //top-left position
+    0, //font
+    1.0,
+    CV_RGB(0, 0, 0), //font color
+    2);
+    cv::putText(image, //target image
+    "CORRIDOR MODE", //text
+    cv::Point(10, 85), //top-left position
+    0, //font
+    1.0,
+    CV_RGB(0, 0, 0), //font color
+    2);
+    cv::putText(image, //target image
+    "LEFT WALL MODE", //text
+    cv::Point(10, 135), //top-left position
+    0, //font
+    1.0,
+    CV_RGB(0, 0, 0), //font color
+    2);
+    cv::putText(image, //target image
+    "RIGHT WALL MODE", //text
+    cv::Point(10, 185), //top-left position
+    0, //font
+    1.0,
+    CV_RGB(0, 0, 0), //font color
+    2);
+    cv::putText(image, //target image
+    "SECURITY STOP", //text
+    cv::Point(10, 235), //top-left position
+    0, //font
+    1.0,
+    CV_RGB(0, 0, 0), //font color
+    2);
+
+    // add data.
+    auto on = CV_RGB(52, 201, 36);
+    auto off = CV_RGB(255, 18, 79);
+
+    if(robot_control.origin_commande == 1)
+    {
+        cv::putText(image, //target image
+        "ON", //text
+        cv::Point(310, 35), //top-left position
+        0, //font
+        1.0,
+        on, //font color
+        4);
+    }
+    else{
+        cv::putText(image, //target image
+        "OF", //text
+        cv::Point(310, 35), //top-left position
+        0, //font
+        1.0,
+        off, //font color
+        4);
+    }
+    if(robot_control.origin_commande == 2)
+    {
+        cv::putText(image, //target image
+        "ON", //text
+        cv::Point(310, 85), //top-left position
+        0, //font
+        1.0,
+        on, //font color
+        4);
+    }
+    else{
+        cv::putText(image, //target image
+        "OFF", //text
+        cv::Point(310, 85), //top-left position
+        0, //font
+        1.0,
+        off, //font color
+        4);
+    }
+    if(robot_control.origin_commande == 3)
+    {
+        cv::putText(image, //target image
+        "ON", //text
+        cv::Point(310, 135), //top-left position
+        0, //font
+        1.0,
+        on, //font color
+        4);
+    }
+    else{
+        cv::putText(image, //target image
+        "OFF", //text
+        cv::Point(310, 135), //top-left position
+        0, //font
+        1.0,
+        off, //font color
+        4);
+    }
+    if(robot_control.origin_commande == 4)
+    {
+        cv::putText(image, //target image
+        "ON", //text
+        cv::Point(310, 185), //top-left position
+        0, //font
+        1.0,
+        on, //font color
+        4);
+    }
+    else{
+        cv::putText(image, //target image
+        "OFF", //text
+        cv::Point(310, 185), //top-left position
+        0, //font
+        1.0,
+        off, //font color
+        4);
+    }
+    if(robot_control.origin_commande == 5)
+    {
+        cv::putText(image, //target image
+        "ON", //text
+        cv::Point(310, 235), //top-left position
+        0, //font
+        1.0,
+        on, //font color
+        4);
+    }
+    else{
+        cv::putText(image, //target image
+        "OFF", //text
+        cv::Point(310, 235), //top-left position
+        0, //font
+        1.0,
+        off, //font color
+        4);
+    }
+
+    // add line.
+    cv::line(image, cv::Point(0,  50), cv::Point(600,  50), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 100), cv::Point(600, 100), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 150), cv::Point(600, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(0, 200), cv::Point(600, 200), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(300, 0), cv::Point(300, 250), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+    cv::line(image, cv::Point(400, 0), cv::Point(400, 250), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
+}
+
 void Robot_system::thread_ANALYSER(int frequency)
 {
     /*
@@ -2325,6 +2489,10 @@ void Robot_system::thread_ANALYSER(int frequency)
     // VISUAL FEATURE.
     cv::Mat image(1050, 1000, CV_8UC3, cv::Scalar(255, 255, 255));
     add_texte(image);
+
+    // AUTONOMOUS MODE ULTRASON.
+    cv::Mat init(250, 600, CV_8UC3, cv::Scalar(255, 255, 255));
+    debug_autonomous_ultra = init;
 
     while(true)
     {
@@ -2518,6 +2686,14 @@ void Robot_system::thread_ANALYSER(int frequency)
             add_lines_sensor(copy_debug_sensor);
             cv::namedWindow("Debug sensor",cv::WINDOW_AUTOSIZE);
             cv::imshow("Debug sensor", copy_debug_sensor);
+        }
+
+        if(robot_general_state == Robot_state().autonomous_nav)
+        {
+            cv::Mat copy_debug_autonomous_ultra = debug_autonomous_ultra.clone();
+            debug_autonav(copy_debug_autonomous_ultra);
+            cv::namedWindow("Autonav integration",cv::WINDOW_AUTOSIZE);
+            cv::imshow("Autonav integration", copy_debug_autonomous_ultra);
         }
 
         char d=(char)cv::waitKey(25);

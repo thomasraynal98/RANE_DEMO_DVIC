@@ -59,6 +59,16 @@ struct Robot_control
     bool goForward{false};
     bool goBackward{false};
 
+    /* Store the processus than put new command.
+    (-1) : no data
+    (0)  : manual
+    (1)  : visual slam
+    (2)  : corridor mode 
+    (3)  : left wall mode 
+    (4)  : right wall mode
+    (5)  : safety check. */
+    int origin_commande{-1}; // for debug.
+
     bool operator==(Robot_control& ctr2)
     {
         return motor.m1L == ctr2.motor.m1L && motor.m2L == ctr2.motor.m2L &&\
