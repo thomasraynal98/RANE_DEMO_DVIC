@@ -335,8 +335,11 @@ struct Robot_sensor
     {
         bool isSecurityStop{false};
         bool isInCorridorMode{false};
+        int cfg_corridor{-1};
         bool isWallDetectionLeft{false};
+        double estimateLeftWall{-1};
         bool isWallDetectionRight{false};
+        double estimateRightWall{-1};
         std::chrono::high_resolution_clock::time_point time_stop;
         std::chrono::duration<double, std::milli> elapsed_time_since_stop;
         int wait_time_after_stop{1500}; //en ms
@@ -428,13 +431,14 @@ struct Robot_sensor
             (-1)= Error
         */
 
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF3 && (ultrasonic.ulF0 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulF3 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2)) { return 0;}
-        if(ultra_obstacle.obsulB0 && ultra_obstacle.obsulB2 && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulF3) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulF3)) { return 1;}
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB0 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF3 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { return 2;}
-        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB2 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { return 3;}
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB2 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF3 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { return 4;}
-        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB0 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { return 5;}
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF3 && (ultrasonic.ulF0 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulF3 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 0; return 0;}
+        if(ultra_obstacle.obsulB0 && ultra_obstacle.obsulB2 && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulF3) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulF3)) { detection_analyse.cfg_corridor = 1; return 1;}
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB0 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF3 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 2; return 2;}
+        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB2 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { detection_analyse.cfg_corridor = 3; return 3;}
+        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB2 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF3 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { detection_analyse.cfg_corridor = 4; return 4;}
+        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB0 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 5; return 5;}
 
+        detection_analyse.cfg_corridor = -1; 
         return -1;
     }
 
@@ -461,6 +465,11 @@ struct Robot_sensor
             {
                 detection_analyse.isWallDetectionLeft = false;
             }
+            detection_analyse.estimateLeftWall = estimation_area; //debug
+        }
+        else
+        {
+            detection_analyse.estimateLeftWall = -1; //debug
         }
 
         D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF3 ;
@@ -478,6 +487,11 @@ struct Robot_sensor
             {
                 detection_analyse.isWallDetectionRight = false;
             }
+            detection_analyse.estimateRightWall = estimation_area; //debug
+        }
+        else
+        {
+            detection_analyse.estimateRightWall = -1; //debug
         }
     }
 };

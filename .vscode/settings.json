@@ -70,6 +70,7 @@
         "bit": "cpp",
         "string.h": "c",
         "serialport.h": "c",
-        "serialstream.h": "c"
+        "serialstream.h": "c",
+        "*.tpp": "cpp"
     }
 }

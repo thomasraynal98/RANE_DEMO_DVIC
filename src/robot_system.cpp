@@ -2346,6 +2346,7 @@ void Robot_system::debug_autonav(cv::Mat image)
     // add data.
     auto on = CV_RGB(52, 201, 36);
     auto off = CV_RGB(255, 18, 79);
+    auto dark = CV_RGB(0, 0, 0);
 
     if(robot_control.origin_commande == 1)
     {
@@ -2375,6 +2376,14 @@ void Robot_system::debug_autonav(cv::Mat image)
         1.0,
         on, //font color
         4);
+
+        cv::putText(image, //target image
+        cv::format("%2.2f", robot_sensor_data.detection_analyse.cfg_corridor), //text
+        cv::Point(410, 85), //top-left position
+        0, //font
+        1.0,
+        dark, //font color
+        2);
     }
     else{
         cv::putText(image, //target image
@@ -2404,6 +2413,13 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
+    cv::putText(image, //target image
+    cv::format("%2.2f", robot_sensor_data.detection_analyse.estimateLeftWall), //text
+    cv::Point(410, 135), //top-left position
+    0, //font
+    1.0,
+    dark, //font color
+    2);
     if(robot_control.origin_commande == 4)
     {
         cv::putText(image, //target image
@@ -2423,6 +2439,13 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
+    cv::putText(image, //target image
+    cv::format("%2.2f", robot_sensor_data.detection_analyse.estimateRightWall), //text
+    cv::Point(410, 185), //top-left position
+    0, //font
+    1.0,
+    dark, //font color
+    2);
     if(robot_control.origin_commande == 5)
     {
         cv::putText(image, //target image
@@ -2442,6 +2465,21 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
+    cv::putText(image, //target image
+    cv::format("%2.2f", (int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count()), //text
+    cv::Point(410, 235), //top-left position
+    0, //font
+    1.0,
+    dark, //font color
+    2);
+
+    cv::putText(image, //target image
+    cv::format("%2.2f", robot_control.manual_commande_message), //text
+    cv::Point(410, 35), //top-left position
+    0, //font
+    1.0,
+    dark, //font color
+    2);
 
     // add line.
     cv::line(image, cv::Point(0,  50), cv::Point(600,  50), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
