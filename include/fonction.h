@@ -304,8 +304,8 @@ struct Robot_sensor
     struct Architecture
     {
         double angle_ultrasensor{45.0};
-        double space_between_front_sensor{300.0};
-        double space_between_front_lateral{20.0};
+        double distance_co_captor{20.0};
+        double distance_centraux{270.0};
     } architecture;
 
     struct Ultrasonic
@@ -482,7 +482,6 @@ struct Robot_sensor
             }
         }
 
-        std::cout << "[INDEX:" << index << "/" << index2 << "\n";
         // if result good.
         if(index != -1 && index2 != -1)
         {
@@ -524,35 +523,39 @@ struct Robot_sensor
             going into a wall.
         */
 
-        double D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF0 ;
-        double estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF1);
-        double threshold_area  = 80.0;
+        // double D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF0 ;
+        // double estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF1);
+        double alpha           = atan((ultrasonic.ulF1-ultrasonic.ulF0*sin(architecture.angle_ultrasensor*M_PI/180))/(ultrasonic.ulF0*cos(architecture.angle_ultrasensor*M_PI/180-architecture.distance_co_captor)));
+        double estimation_area = tan(alpha)*(architecture.distance_co_captor+architecture.distance_centraux)+ultrasonic.ulF1;
 
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF1 && \
-        ultra_obstacle.obsulF2)
+
+        double threshold_area  = 100.0;
+        std::cout << "[ESTIMATEAREA:" << estimation_area << "\n";
+        // if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF1 && \
+        // ultra_obstacle.obsulF2)
+        // {
+        if(ultrasonic.ulF2 >= (estimation_area - threshold_area) && \
+        ultrasonic.ulF2 <= (estimation_area + threshold_area))
         {
-            if(ultrasonic.ulF2 >= (estimation_area - threshold_area) && \
-            ultrasonic.ulF2 <= (estimation_area + threshold_area))
-            {
-                detection_analyse.isWallDetectionLeft = true;
-            }
-            else
-            {
-                detection_analyse.isWallDetectionLeft = false;
-            }
-            detection_analyse.estimateLeftWall = estimation_area; //debug
+            detection_analyse.isWallDetectionLeft = true;
         }
         else
         {
-            detection_analyse.estimateLeftWall = -1; //debug
+            detection_analyse.isWallDetectionLeft = false;
         }
+        detection_analyse.estimateLeftWall = estimation_area; //debug
+        // }
+        // else
+        // {
+        //     detection_analyse.estimateLeftWall = -1; //debug
+        // }
 
-        D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF3 ;
-        estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF2);
+        alpha           = atan((ultrasonic.ulF2-ultrasonic.ulF3*sin(architecture.angle_ultrasensor*M_PI/180))/(ultrasonic.ulF3*cos(architecture.angle_ultrasensor*M_PI/180-architecture.distance_co_captor)));
+        estimation_area = tan(alpha)*(architecture.distance_co_captor+architecture.distance_centraux)+ultrasonic.ulF2;
 
-        if(ultra_obstacle.obsulF1 && ultra_obstacle.obsulF2 && \
-        ultra_obstacle.obsulF3)
-        {
+        // if(ultra_obstacle.obsulF1 && ultra_obstacle.obsulF2 && \
+        // ultra_obstacle.obsulF3)
+        // {
             if(ultrasonic.ulF1 >= (estimation_area - threshold_area) && \
             ultrasonic.ulF1 <= (estimation_area + threshold_area))
             {
@@ -563,11 +566,11 @@ struct Robot_sensor
                 detection_analyse.isWallDetectionRight = false;
             }
             detection_analyse.estimateRightWall = estimation_area; //debug
-        }
-        else
-        {
-            detection_analyse.estimateRightWall = -1; //debug
-        }
+        // }
+        // else
+        // {
+        //     detection_analyse.estimateRightWall = -1; //debug
+        // }
     }
 };
 

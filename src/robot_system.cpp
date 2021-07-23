@@ -87,7 +87,7 @@ Robot_system::Robot_system(std::string val_id)
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 50);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
@@ -1099,25 +1099,25 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
 
     }
 
-    // /* Detect if we are forward in a wall. */
-    // robot_sensor_data.detect_wall_situation();
-    // if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && \
-    // (robot_sensor_data.detection_analyse.isWallDetectionLeft || \
-    // robot_sensor_data.detection_analyse.isWallDetectionRight))
-    // {
-    //     if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
-    //     {
-    //         /* We have a wall on a left. */
-    //         robot_control.manual_new_command(6);
-    //         robot_control.origin_commande = 3;
-    //     }
-    //     if(robot_sensor_data.detection_analyse.isWallDetectionRight)
-    //     {
-    //         /* We have a wall on a right. */
-    //         robot_control.manual_new_command(5);
-    //         robot_control.origin_commande = 4;
-    //     }
-    // }
+    /* Detect if we are forward in a wall. */
+    robot_sensor_data.detect_wall_situation();
+    // if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && 
+    if(robot_sensor_data.detection_analyse.isWallDetectionLeft || \
+    robot_sensor_data.detection_analyse.isWallDetectionRight)
+    {
+        if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
+        {
+            /* We have a wall on a left. */
+            robot_control.manual_new_command(6);
+            robot_control.origin_commande = 3;
+        }
+        if(robot_sensor_data.detection_analyse.isWallDetectionRight)
+        {
+            /* We have a wall on a right. */
+            robot_control.manual_new_command(5);
+            robot_control.origin_commande = 4;
+        }
+    }
 
     // /* Safety check. */
     // double safety_threshold = 100.0; // en mm.

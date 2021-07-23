@@ -28,6 +28,11 @@
 int main()
 {
     Robot_system robot1 = Robot_system("mk2r2");
+    // double alpha           = atan((37-37*sin(30*M_PI/180))/(37*cos(31*M_PI/180)-8));
+    // std::cout << alpha << "\n";
+    // double estimation_area = tan(alpha)*(31+8) + 37;
+    // std::cout << "[ESTIMATEAREA:" << estimation_area << "\n";
+
 }
 
 // #include <list>
