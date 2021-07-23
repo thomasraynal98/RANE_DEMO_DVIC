@@ -50,7 +50,7 @@ Robot_system::Robot_system(std::string val_id)
     fan_power                 = -1;
 
     // initialisation SLAM.
-    // init_slam_sdk();
+    init_slam_sdk();
 
     // initialisation map and points (TODO: in the future, no points will be in computer
     // only send from server).
@@ -86,8 +86,8 @@ Robot_system::Robot_system(std::string val_id)
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this,100);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 50);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
@@ -101,7 +101,7 @@ Robot_system::Robot_system(std::string val_id)
 
     // debug_message_server();
 
-    // thread_1_localisation.join();
+    thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
@@ -1016,7 +1016,7 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             general algorythme process and add the wall follow process.
     */
     double angle_threshold = 40.0; //en deg.
-    double diff_threshold = 300.0; //difference threshold.
+    double diff_threshold = 0.0; //difference threshold.
 
     /* Update proximity sensor information. */
     robot_sensor_data.proximity_sensor_detection(300.0, 600.0, thread_2_hz);
@@ -1027,20 +1027,20 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
     {
         /* Check the current CORIDOR option configuration. */
         int cfg_corridor = robot_sensor_data.get_corridor_configuration();
-
+        std::cout << "[CORRIDOR:" << cfg_corridor << "]\n";
         /* Front configuration. */
         if(cfg_corridor == 0)
         {
-            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold+100.0 < robot_sensor_data.ultrasonic.ulF3)
+            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold< robot_sensor_data.ultrasonic.ulF3)
             {
-                // Are currently going to the wall. Smooth turn left.
-                robot_control.manual_new_command(5);
+                // Are currently going to the wall. Smooth turn right.
+                robot_control.manual_new_command(6);
                 robot_control.origin_commande = 2;
             }
-            else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold+100.0 < robot_sensor_data.ultrasonic.ulF0)
+            else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
-                // Are currently moving away the wall. Smooth turn right.
-                robot_control.manual_new_command(6);
+                // Are currently moving away the wall. Smooth turn left.
+                robot_control.manual_new_command(5);
                 robot_control.origin_commande = 2;
             }
         }
@@ -1077,7 +1077,7 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
                 robot_control.manual_new_command(5);
                 robot_control.origin_commande = 2;
             }
-            else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
+            else if (robot_sensor_data.ultrasonic.ulB2+diff_threshold < robot_sensor_data.ultrasonic.ulF3)
             {
                 // Are currently moving away the wall. Smooth turn right.
                 robot_control.manual_new_command(6);
@@ -1099,54 +1099,56 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
 
     }
 
-    /* Detect if we are forward in a wall. */
-    robot_sensor_data.detect_wall_situation();
-    if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && \
-    (robot_sensor_data.detection_analyse.isWallDetectionLeft || \
-    robot_sensor_data.detection_analyse.isWallDetectionRight))
-    {
-        if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
-        {
-            /* We have a wall on a left. */
-            robot_control.manual_new_command(6);
-            robot_control.origin_commande = 3;
-        }
-        if(robot_sensor_data.detection_analyse.isWallDetectionRight)
-        {
-            /* We have a wall on a right. */
-            robot_control.manual_new_command(5);
-            robot_control.origin_commande = 4;
-        }
-    }
+    // /* Detect if we are forward in a wall. */
+    // robot_sensor_data.detect_wall_situation();
+    // if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && \
+    // (robot_sensor_data.detection_analyse.isWallDetectionLeft || \
+    // robot_sensor_data.detection_analyse.isWallDetectionRight))
+    // {
+    //     if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
+    //     {
+    //         /* We have a wall on a left. */
+    //         robot_control.manual_new_command(6);
+    //         robot_control.origin_commande = 3;
+    //     }
+    //     if(robot_sensor_data.detection_analyse.isWallDetectionRight)
+    //     {
+    //         /* We have a wall on a right. */
+    //         robot_control.manual_new_command(5);
+    //         robot_control.origin_commande = 4;
+    //     }
+    // }
 
-    /* Safety check. */
-    double safety_threshold = 100.0; // en mm.
-    if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
-    ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
-    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && robot_control.goForward)
-    {
-        if(!(robot_sensor_data.detection_analyse.isSecurityStop))
-        {
-            robot_control.manual_new_command(0); //stop.
-            robot_control.origin_commande                      = 5;
-            robot_sensor_data.detection_analyse.isSecurityStop = true;
-            robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
-        }
-    }
-    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
-    if((robot_sensor_data.ultra_obstacle.obsulB1) && \
-    robot_sensor_data.ultrasonic.ulB1 < safety_threshold && \ 
-    robot_control.goBackward)
-    {
-        if(!(robot_sensor_data.detection_analyse.isSecurityStop))
-        {
-            robot_control.manual_new_command(0); //stop.
-            robot_control.origin_commande                      = 5;
-            robot_sensor_data.detection_analyse.isSecurityStop = true;
-            robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
-        }
-    }
-    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
+    // /* Safety check. */
+    // double safety_threshold = 100.0; // en mm.
+    // // TODO: debug.
+    // std::cout << "[OBSTACLEFRONT:" << robot_sensor_data.ultra_obstacle.obsulF1 << "/" << robot_sensor_data.ultra_obstacle.obsulF2 << "/GoForward:" << robot_control.goForward << "]\n";
+    // if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
+    // ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
+    // (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && robot_control.goForward)
+    // {
+    //     if(!(robot_sensor_data.detection_analyse.isSecurityStop))
+    //     {
+    //         robot_control.manual_new_command(0); //stop.
+    //         robot_control.origin_commande                      = 5;
+    //         robot_sensor_data.detection_analyse.isSecurityStop = true;
+    //         robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
+    //     }
+    // }
+    // else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
+    // if((robot_sensor_data.ultra_obstacle.obsulB1) && \
+    // robot_sensor_data.ultrasonic.ulB1 < safety_threshold && \ 
+    // robot_control.goBackward)
+    // {
+    //     if(!(robot_sensor_data.detection_analyse.isSecurityStop))
+    //     {
+    //         robot_control.manual_new_command(0); //stop.
+    //         robot_control.origin_commande                      = 5;
+    //         robot_sensor_data.detection_analyse.isSecurityStop = true;
+    //         robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
+    //     }
+    // }
+    // else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
 }
 
 // FONCTION MOTOR.
@@ -1168,8 +1170,9 @@ void Robot_system::compute_motor_autocommande()
     double distance_deg      = target_keypoint->target_angle;
     /* Reflechir à une maniere to integrate other variable in this calcule, like speed 
     or area type. */
-    double dynamic_threshold = 10;
+    double dynamic_threshold = 30;
     
+    // TODO : debug
     if(distance_deg > dynamic_threshold)
     {
         /* Can't go forward, need to rotate or be smooth. */
@@ -2201,6 +2204,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulF0)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(125, 135), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
     
     rectangle(image, cv::Point(150, 0), cv::Point(300, 150),
             fond_ulF1,
@@ -2212,6 +2225,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulF1)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(125+150, 135), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 
     rectangle(image, cv::Point(300, 0), cv::Point(450, 150),
             fond_ulF2,
@@ -2223,6 +2246,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulF2)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(125+300, 135), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 
     rectangle(image, cv::Point(450, 0), cv::Point(600, 150),
             fond_ulF3,
@@ -2234,6 +2267,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulF3)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(125+450, 135), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 
     rectangle(image, cv::Point(0, 150), cv::Point(200, 300),
             fond_ulB0,
@@ -2245,6 +2288,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulB0)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(175, 135+150), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 
     rectangle(image, cv::Point(200, 150), cv::Point(400, 300),
             fond_ulB1,
@@ -2256,6 +2309,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulB1)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(175+200, 135+150), //top-left position
+        0, //f
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 
     rectangle(image, cv::Point(400, 150), cv::Point(600, 300),
             fond_ulB2,
@@ -2267,6 +2330,16 @@ void Robot_system::add_ultrasonic(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
+    if(robot_sensor_data.ultra_obstacle.obsulB2)
+    {
+        cv::putText(image, //target image
+        "O",
+        cv::Point(175+400, 135+150), //top-left position
+        0, //font
+        1.0,
+        CV_RGB(0, 0, 0), //font color
+        1);
+    }
 }
 
 void Robot_system::add_energy_sensor(cv::Mat image)
@@ -2376,14 +2449,6 @@ void Robot_system::debug_autonav(cv::Mat image)
         1.0,
         on, //font color
         4);
-
-        cv::putText(image, //target image
-        cv::format("%2.2f", robot_sensor_data.detection_analyse.cfg_corridor), //text
-        cv::Point(410, 85), //top-left position
-        0, //font
-        1.0,
-        dark, //font color
-        2);
     }
     else{
         cv::putText(image, //target image
@@ -2394,6 +2459,13 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
+    cv::putText(image, //target image
+        std::to_string(robot_sensor_data.detection_analyse.cfg_corridor), //text
+        cv::Point(410, 85), //top-left position
+        0, //font
+        1.0,
+        dark, //font color
+        2);
     if(robot_control.origin_commande == 3)
     {
         cv::putText(image, //target image
@@ -2474,8 +2546,16 @@ void Robot_system::debug_autonav(cv::Mat image)
     2);
 
     cv::putText(image, //target image
-    cv::format("%2.2f", robot_control.manual_commande_message), //text
+    std::to_string(robot_control.manual_commande_message), //text
     cv::Point(410, 35), //top-left position
+    0, //font
+    1.0,
+    dark, //font color
+    2);
+
+    cv::putText(image, //target image
+    cv::format("%2.2f", target_keypoint->target_angle), //text
+    cv::Point(480, 35), //top-left position
     0, //font
     1.0,
     dark, //font color

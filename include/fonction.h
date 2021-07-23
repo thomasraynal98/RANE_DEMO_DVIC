@@ -6,6 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <chrono>
+#include <tuple>
 
 typedef std::pair<int, int> Pair;
 typedef std::tuple<double, int, int> Tuple;
@@ -321,8 +322,8 @@ struct Robot_sensor
 
     struct Ultrasonic_obstacle
     {
-        bool obsulF0{0}, obsulF1{0}, obsulF2{0}, obsulF3{0};
-        bool obsulB0{0}, obsulB1{0}, obsulB2{0};
+        bool obsulF0{false}, obsulF1{false}, obsulF2{false}, obsulF3{false};
+        bool obsulB0{false}, obsulB1{false}, obsulB2{false};
     } ultra_obstacle;
 
     struct Energy
@@ -357,22 +358,23 @@ struct Robot_sensor
         */
 
         std::vector<int> obstacle_position;
-        int threshold_comptor           = frequency / 4; // it's like say 250ms.
+        // int threshold_comptor           = frequency / 6; // it's like say 250ms.
+        int threshold_comptor = frequency / 6;
 
         if(ultrasonic.ulF0 < threshold_latera && ultrasonic.ulF0 != 0) { ultra_detect.nbulF0 += 1;}
-        else{ if(ultrasonic.ulF0 != 0) {ultra_detect.nbulF0 = 0;}}
+        else{ ultra_detect.nbulF0 = 0;}
         if(ultrasonic.ulF1 < threshold_direct && ultrasonic.ulF1 != 0) { ultra_detect.nbulF1 += 1;}
-        else{ if(ultrasonic.ulF1 != 0) {ultra_detect.nbulF1 = 0;}}
+        else{ ultra_detect.nbulF1 = 0;}
         if(ultrasonic.ulF2 < threshold_direct && ultrasonic.ulF2 != 0) { ultra_detect.nbulF2 += 1;}
-        else{ if(ultrasonic.ulF2 != 0) {ultra_detect.nbulF2 = 0;}}
+        else{ ultra_detect.nbulF2 = 0;}
         if(ultrasonic.ulF3 < threshold_latera && ultrasonic.ulF3 != 0) { ultra_detect.nbulF3 += 1;}
-        else{ if(ultrasonic.ulF3 != 0) {ultra_detect.nbulF3 = 0;}}
+        else{ ultra_detect.nbulF3 = 0;}
         if(ultrasonic.ulB0 < threshold_latera && ultrasonic.ulB0 != 0) { ultra_detect.nbulB0 += 1;}
-        else{ if(ultrasonic.ulB0 != 0) {ultra_detect.nbulB0 = 0;}}
+        else{ ultra_detect.nbulB0 = 0;}
         if(ultrasonic.ulB1 < threshold_direct && ultrasonic.ulB1 != 0) { ultra_detect.nbulB1 += 1;}
-        else{ if(ultrasonic.ulB1 != 0) {ultra_detect.nbulB1 = 0;}}
+        else{ ultra_detect.nbulB1 = 0;}
         if(ultrasonic.ulB2 < threshold_latera && ultrasonic.ulB2 != 0) { ultra_detect.nbulB2 += 1;}
-        else{ if(ultrasonic.ulB2 != 0) {ultra_detect.nbulB2 = 0;}}
+        else{ ultra_detect.nbulB2 = 0;}
 
         /* Update Ultrasonic_obstacle detection. */
         if(ultra_detect.nbulF0 >= threshold_comptor){ ultra_obstacle.obsulF0 = true; obstacle_position.push_back(0);}
@@ -416,6 +418,14 @@ struct Robot_sensor
         return false;
     }
 
+    void sort_vector(std::vector<double> list)
+    {
+        /*
+            DESCRIPTION: sort vector from 0.01 to infinity.
+            0.0 is at the end.
+        */
+    }
+
     int get_corridor_configuration()
     {
         /*
@@ -429,18 +439,83 @@ struct Robot_sensor
             (4) = Diagonal Left
             (5) = Diagonal Right
             (-1)= Error
+            INT SENSOR:
+            (0) = ulF0
+            (1) = ulF3
+            (2) = ulB0
+            (3) = ulB2
         */
 
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF3 && (ultrasonic.ulF0 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulF3 <= ultrasonic.ulB0 && ultrasonic.ulF0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 0; return 0;}
-        if(ultra_obstacle.obsulB0 && ultra_obstacle.obsulB2 && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulF3) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulF3)) { detection_analyse.cfg_corridor = 1; return 1;}
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB0 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF3 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 2; return 2;}
-        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB2 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF0 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { detection_analyse.cfg_corridor = 3; return 3;}
-        if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulB2 && (ultrasonic.ulF0 <= ultrasonic.ulF3 && ultrasonic.ulF0 <= ultrasonic.ulB0) && (ultrasonic.ulB2 <= ultrasonic.ulF3 && ultrasonic.ulB2 <= ultrasonic.ulB0)) { detection_analyse.cfg_corridor = 4; return 4;}
-        if(ultra_obstacle.obsulF3 && ultra_obstacle.obsulB0 && (ultrasonic.ulF3 <= ultrasonic.ulF0 && ultrasonic.ulF3 <= ultrasonic.ulB2) && (ultrasonic.ulB0 <= ultrasonic.ulF0 && ultrasonic.ulB0 <= ultrasonic.ulB2)) { detection_analyse.cfg_corridor = 5; return 5;}
+        std::vector<Tuple> list;
+        auto c0 = std::make_tuple(ultrasonic.ulF3, 0, ultra_obstacle.obsulF0);
+        auto c1 = std::make_tuple(ultrasonic.ulF3, 1, ultra_obstacle.obsulF3);        
+        auto c2 = std::make_tuple(ultrasonic.ulB0, 2, ultra_obstacle.obsulB0);
+        auto c3 = std::make_tuple(ultrasonic.ulB2, 3, ultra_obstacle.obsulB2);       
+        list.push_back(c0);
+        list.push_back(c1);
+        list.push_back(c2);
+        list.push_back(c3);
 
-        detection_analyse.cfg_corridor = -1; 
+        
+        // found the most small.
+        int min = 99999;
+        int index = -1;
+        for(auto i : list)
+        {
+            // std::cout << "[" << std::get<0>(i) << " " << std::get<1>(i) << " " << std::get<2>(i) << "]\n";
+            if(std::get<0>(i) < min && std::get<2>(i) && std::get<0>(i) != 0)
+            {
+                index = std::get<1>(i);
+                min   = std::get<0>(i);
+            }
+        }
+
+        // found the second one.
+        min = 99999;
+        int index2 = -1;
+        for(auto i : list)
+        {
+            if(std::get<0>(i) < min && std::get<2>(i) && std::get<0>(i) != 0 && std::get<1>(i) != index)
+            {
+                index2 = std::get<1>(i);
+                min    = std::get<0>(i);
+            }
+        }
+
+        std::cout << "[INDEX:" << index << "/" << index2 << "\n";
+        // if result good.
+        if(index != -1 && index2 != -1)
+        {
+            if((index == 0 && index2 == 1) || (index == 1 && index2 == 0))
+            {
+                detection_analyse.cfg_corridor = 0; return 0;
+            }
+            if((index == 3 && index2 == 2) || (index == 2 && index2 == 3))
+            {
+                detection_analyse.cfg_corridor = 1; return 1;
+            }
+            if((index == 0 && index2 == 2) || (index == 2 && index2 == 0))
+            {
+                detection_analyse.cfg_corridor = 2; return 2;
+            }
+            if((index == 1 && index2 == 3) || (index == 3 && index2 == 1))
+            {
+                detection_analyse.cfg_corridor = 3; return 3;
+            }
+            if((index == 0 && index2 == 3) || (index == 3 && index2 == 0))
+            {
+                detection_analyse.cfg_corridor = 4; return 4;
+            }
+            if((index == 1 && index2 == 2) || (index == 2 && index2 == 1))
+            {
+                detection_analyse.cfg_corridor = 5; return 5;
+            }
+        }
+        // detection_analyse.cfg_corridor = -1; 
         return -1;
     }
+
+
 
     bool detect_wall_situation()
     {
