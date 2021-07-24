@@ -421,14 +421,6 @@ struct Robot_sensor
         return false;
     }
 
-    void sort_vector(std::vector<double> list)
-    {
-        /*
-            DESCRIPTION: sort vector from 0.01 to infinity.
-            0.0 is at the end.
-        */
-    }
-
     int get_corridor_configuration()
     {
         /*
@@ -465,7 +457,6 @@ struct Robot_sensor
         int index = -1;
         for(auto i : list)
         {
-            // std::cout << "[" << std::get<0>(i) << " " << std::get<1>(i) << " " << std::get<2>(i) << "]\n";
             if(std::get<0>(i) < min && std::get<2>(i) && std::get<0>(i) != 0)
             {
                 index = std::get<1>(i);
@@ -513,7 +504,7 @@ struct Robot_sensor
                 detection_analyse.cfg_corridor = 5; return 5;
             }
         }
-        // detection_analyse.cfg_corridor = -1; 
+         
         return -1;
     }
 
@@ -599,10 +590,14 @@ struct Path_keypoint {
 };
 
 struct cell {
+    /*
+        DESCRIPTION: this structure is using for A* algorythm.
+    */
+
     // Row and Column index of its parent
     Pair parent;
-    // f = g + h
-    double f, g, h, t, w;
+    // f = g + h + t
+    double f, g, h, t;
     cell()
         : parent()
         , f(-1)
