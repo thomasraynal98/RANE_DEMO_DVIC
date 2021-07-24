@@ -1119,23 +1119,27 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         }
     }
 
-    // /* Safety check. */
-    // double safety_threshold = 100.0; // en mm.
-    // // TODO: debug.
-    // std::cout << "[OBSTACLEFRONT:" << robot_sensor_data.ultra_obstacle.obsulF1 << "/" << robot_sensor_data.ultra_obstacle.obsulF2 << "/GoForward:" << robot_control.goForward << "]\n";
-    // if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
-    // ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
-    // (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && robot_control.goForward)
-    // {
-    //     if(!(robot_sensor_data.detection_analyse.isSecurityStop))
-    //     {
-    //         robot_control.manual_new_command(0); //stop.
-    //         robot_control.origin_commande                      = 5;
-    //         robot_sensor_data.detection_analyse.isSecurityStop = true;
-    //         robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
-    //     }
-    // }
-    // else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
+    /* Safety check. */
+    double safety_threshold = 130.0; // en mm.
+    // TODO: debug.
+    std::cout << "[OBSTACLEFRONT:" << robot_sensor_data.ultra_obstacle.obsulF1 << "/" << robot_sensor_data.ultra_obstacle.obsulF2 << "/GoForward:" << robot_control.goForward << "]\n";
+    if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
+    ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
+    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)))
+    {   
+        // TODO : add goForward.
+        // if(!robot_sensor_data.detection_analyse.isSecurityStop)
+        // {
+            robot_control.manual_new_command(0); //stop.
+            robot_control.origin_commande                      = 5;
+            if(robot_sensor_data.detection_analyse.isSecurityStop == false)
+            {
+                robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
+            }
+            robot_sensor_data.detection_analyse.isSecurityStop = true;
+        // }
+    }
+    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
     // if((robot_sensor_data.ultra_obstacle.obsulB1) && \
     // robot_sensor_data.ultrasonic.ulB1 < safety_threshold && \ 
     // robot_control.goBackward)
@@ -1358,7 +1362,10 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Check if we have security stop this enought time. */
             auto now = std::chrono::high_resolution_clock::now();
-            robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
+            if(robot_sensor_data.detection_analyse.isSecurityStop)
+            {
+                robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
+            }
             if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
             {
                 /* Next_code. */
@@ -2538,7 +2545,7 @@ void Robot_system::debug_autonav(cv::Mat image)
         4);
     }
     cv::putText(image, //target image
-    cv::format("%2.2f", (int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count()), //text
+    std::to_string((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count()), //text
     cv::Point(410, 235), //top-left position
     0, //font
     1.0,

@@ -343,7 +343,7 @@ struct Robot_sensor
         double estimateRightWall{-1};
         std::chrono::high_resolution_clock::time_point time_stop;
         std::chrono::duration<double, std::milli> elapsed_time_since_stop;
-        int wait_time_after_stop{1500}; //en ms
+        int wait_time_after_stop{2500}; //en ms
     } detection_analyse;
 
     std::vector<int> proximity_sensor_detection(int threshold_direct, int threshold_latera, double frequency)
@@ -530,7 +530,6 @@ struct Robot_sensor
 
 
         double threshold_area  = 100.0;
-        std::cout << "[ESTIMATEAREA:" << estimation_area << "\n";
         // if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF1 && \
         // ultra_obstacle.obsulF2)
         // {
