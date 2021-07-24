@@ -45,7 +45,8 @@ class Robot_system
         Robot_control robot_control_last_send;
 
         // VARIABLE NAVIGATION.
-        int state_slamcore_tracking = 0;
+        bool slam_process_state = false; // represent pure working process.
+        int state_slamcore_tracking = 0; // represent state when slam is working.
         cv::Mat map_weighted;
         Pose robot_position;
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
@@ -128,7 +129,12 @@ class Robot_system
         bool match_ping_pong(std::string ping, std::string pong);
         float round(float var);
         void get_interne_data();
-        void init_slam_sdk();
+
+        // FONCTION INITIALISATION.
+        bool init_slam_sdk();
+        bool init_map();
+        int init_microcontroler();
+        void init_thread_system();
 
         // FONCTION NAVIGATION.
         bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);

@@ -38,10 +38,10 @@
 #include "../include/robot_system.h"
 #include "../include/fonction.h"
 
-// CONSTRUCTOR.
+// CONSTRUCTOR FOR THE MAIN CLASS.
 Robot_system::Robot_system(std::string val_id)
 {   
-    // initialisation process.
+    /* STEP 1. Initialisation basic process. */
     robot_general_state       = Robot_state().initialisation;
     robot_id                  = val_id;
     robot_speed               = -1;
@@ -49,67 +49,26 @@ Robot_system::Robot_system(std::string val_id)
     cpu_load                  = -1;
     fan_power                 = -1;
 
-    // initialisation SLAM.
-    init_slam_sdk();
-
-    // initialisation map and points (TODO: in the future, no points will be in computer
-    // only send from server).
-    map_weighted = cv::imread(path_to_weighted_map, cv::IMREAD_GRAYSCALE);
-    if(map_weighted.empty())
-    {
-        std::cout << "[ERROR] Could not read the image: " << path_to_weighted_map << std::endl;
-    }
-
-    // initialisation of debug map.
-    debug_init_debug_map();
+    /* STEP 2. Initialisation SLAM process. */
+    if(!init_slam_sdk()) {robot_general_state = Robot_state().warning; slam_process_state = false;}
+    else{ slam_process_state = true;}
     from_3DW_to_2DM();
 
-    // initialisation of debug sensor.
-    debug_init_sensor();
+    /* STEP 3. Initialisation navigation map from folder. */
+    if(!init_map())      {robot_general_state = Robot_state().warning;}
 
-    // initialisation microcontroler.
-    LibSerial::SerialPort* _serial_port_controle_A;
-    LibSerial::SerialPort* _serial_port_sensor_B;
-    __serial_port_controle_A  = &_serial_port_controle_A;
-    __serial_port_sensor_B    = &_serial_port_sensor_B;
-    *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
-    *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
+    /* STEP 4. Initialisation debug interface. */
+    if(true)
+    {
+        debug_init_debug_map(); // Initialisation of debug map.
+        debug_init_sensor();    // Initialisation of debug sensor.
+    }
 
-    // initialisation all thread.
-    thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_2_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_3_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_4_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_5_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_6_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_7_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
-    thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
+    /* STEP 5. Initialisation microcontroler communication. */
+    if(init_microcontroler() != 2) {robot_general_state = Robot_state().warning;}
 
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
-    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
-    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
-    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
-        
-    // init completed and join thread.
-    robot_general_state       = Robot_state().waiting;
-
-    // debug_message_server();
-
-    thread_1_localisation.join();
-    thread_2_commande.join();
-    thread_3_listener_MICROA.join();
-    thread_4_speaker_MICROA.join();
-    thread_5_listener_MICROB.join();
-    thread_6_speaker_MICROB.join();
-    thread_7_listener_SERVER.join();
-    // thread_8_speaker_SERVER.join();
-    thread_9_thread_ANALYSER.join();
+    /* STEP 6. Initialisation all thread */
+    init_thread_system();
 }
 
 Robot_state::Robot_state()
@@ -126,6 +85,8 @@ bool Robot_system::match_ping_pong(std::string ping, std::string pong)
     /*
         DESCRIPTOR      : this function will check if the pong message 
             is the expected message.
+        "pong message"  = is the message received from microntroler if it
+            are currently connected and working.
     */
    ping = ping + "\n";
    return ping.compare(pong) == 0;
@@ -272,7 +233,8 @@ void Robot_system::get_interne_data()
     else{state_sensor_fan = 1;}
 }
 
-void Robot_system::init_slam_sdk()
+// INITIALISATION FONCTION.
+bool Robot_system::init_slam_sdk()
 try
 {
     /*
@@ -301,7 +263,7 @@ try
     {
         std::cerr << "Error creating SLAM system!" << std::endl;
         slamcore::slamcoreDeinit();
-        // return -1;
+        return false;
     }
 
     std::cout << "Starting SLAM..." << std::endl;
@@ -356,25 +318,119 @@ try
 
     // INIT ATTRIBU OBJECT.
     slamcore = std::move(slam);
+    return true;
 }
 catch (const slamcore::slam_exception& ex)
 {
   std::cerr << "system_error exception! " << ex.what() << " / " << ex.code().message()
             << " / " << ex.code().value() << std::endl;
   slamcore::slamcoreDeinit();
-//   return -1;
+  return false;
 }
 catch (const std::exception& ex)
 {
   std::cerr << "Uncaught std::exception! " << ex.what() << std::endl;
   slamcore::slamcoreDeinit();
-//   return -1;
+  return false;
 }
 catch (...)
 {
   std::cerr << "Uncaught unknown exception!" << std::endl;
   slamcore::slamcoreDeinit();
-//   return -1;
+  return false;
+}
+
+bool Robot_system::init_map()
+{
+    /*
+        DESCRIPTION: this function will init the map of the current session.
+    */
+
+    map_weighted = cv::imread(path_to_weighted_map, cv::IMREAD_GRAYSCALE);
+    if(map_weighted.empty())
+    {
+        std::cout << "[ERROR] Could not read the image: " << path_to_weighted_map << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+int Robot_system::init_microcontroler()
+{
+    /*
+        DESCRIPTION: this function will init all system microcontroler.
+        OUTPUT     :
+        (-1)= Problem found.
+        (0) = No microcontroler found.
+        (1) = 1 microcontroler found.
+        (2) = All microcontrolers found.
+    */
+
+    int output = -1;
+
+    LibSerial::SerialPort* _serial_port_controle_A;
+    LibSerial::SerialPort* _serial_port_sensor_B;
+    __serial_port_controle_A  = &_serial_port_controle_A;
+    __serial_port_sensor_B    = &_serial_port_sensor_B;
+    *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
+    *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
+
+    if(*__serial_port_controle_A != NULL)
+    {
+        if(output == -1) { output = 1;}
+        else{ output += 1;}
+    }
+    if(*__serial_port_sensor_B != NULL)
+    {
+        if(output == -1) { output = 1;}
+        else{ output += 1;}
+    }
+
+    return -1;
+}
+
+void Robot_system::init_thread_system()
+{
+    /*
+        DESCRIPTION: init all thread system.
+    */
+
+    /* Setup all timer. */
+    thread_1_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_2_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_3_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_4_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_5_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_6_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_7_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
+
+    /* Setup all thread. */
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
+    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
+    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
+        
+    /* Initialisation completed. */
+    if(robot_general_state != Robot_state().warning) { robot_general_state = Robot_state().waiting;}
+
+    /* Join all thread. */
+    thread_1_localisation.join();
+    thread_2_commande.join();
+    thread_3_listener_MICROA.join();
+    thread_4_speaker_MICROA.join();
+    thread_5_listener_MICROB.join();
+    thread_6_speaker_MICROB.join();
+    thread_7_listener_SERVER.join();
+    // thread_8_speaker_SERVER.join();
+    thread_9_thread_ANALYSER.join();
 }
 
 // FONCTION NAVIGATION.
@@ -1224,6 +1280,8 @@ void Robot_system::thread_LOCALISATION(int frequency)
         DESCRIPTION: this thread will compute the SLAM algorythme
             and get the position of robot on the current map.
     */
+
+    // TIMING VARIABLE TO OPTIMISE FREQUENCY.
     double time_of_loop = 1000/frequency;                  // en milliseconde.
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
     std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
@@ -1231,9 +1289,7 @@ void Robot_system::thread_LOCALISATION(int frequency)
     auto next = std::chrono::high_resolution_clock::now();
 
     // START SLAM.
-    slamcore->start();
-
-    while(slamcore->spinOnce())
+    while(true)
     {   
         // TIMING VARIABLE.
         x                          = std::chrono::high_resolution_clock::now();         
@@ -1244,18 +1300,24 @@ void Robot_system::thread_LOCALISATION(int frequency)
         next                       += std::chrono::milliseconds((int)(time_of_loop));
         std::this_thread::sleep_until(next);
         // END TIMING VARIABLE.
-        // std::cout << "[THREAD-1]\n";
 
-        // Update distance_RKP and target_angle.
-        if(!possible_candidate_target_keypoint.empty())
+        if(slam_process_state)
         {
-            for(int i = 0; i < keypoints_path.size(); i++)
-            {
-                keypoints_path[i].distance_RKP = compute_distance_RPK(keypoints_path[i].coordinate)*0.05;
-                keypoints_path[i].target_angle = compute_target_angle(keypoints_path[i].coordinate);
+            slamcore->start();
+
+            while(slamcore->spinOnce())
+            {   
+                // If we are in autonav, update distance_RKP and target_angle.
+                if(!possible_candidate_target_keypoint.empty() && robot_general_state == Robot_state().autonomous_nav)
+                {
+                    for(int i = 0; i < keypoints_path.size(); i++)
+                    {
+                        keypoints_path[i].distance_RKP = compute_distance_RPK(keypoints_path[i].coordinate)*0.05;
+                        keypoints_path[i].target_angle = compute_target_angle(keypoints_path[i].coordinate);
+                    }
+                }
             }
         }
-
     }
 }
 
@@ -1537,7 +1599,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                 // we are disconnect.
                 state = 2;
                 // we try to found it.
-                *serial_port = get_available_port(1, pong_message, true);
+                *serial_port = get_available_port(0, pong_message, true);
             }
         }
 
@@ -2080,25 +2142,13 @@ void Robot_system::add_state_slamcore(cv::Mat image)
     std::string string_tracking_status = "";
     cv::Scalar fond_tracking_status( 255, 255, 255);
 
-    if(state_slamcore_tracking == 0){
-        string_tracking_status = "Not initialised";
-        fond_tracking_status = cv::Scalar(0,0,0);
-    }
-    if(state_slamcore_tracking == 1){
-        string_tracking_status = "Ok";
+    if(slam_process_state){
+        string_tracking_status = "Working";
         fond_tracking_status = cv::Scalar(0,255,0);
     }
-    if(state_slamcore_tracking == 2){
-        string_tracking_status = "Lost";
+    if(!slam_process_state){
+        string_tracking_status = "Not working";
         fond_tracking_status = cv::Scalar(0,0,255);
-    }
-    if(state_slamcore_tracking == 3){
-        string_tracking_status = "Relocalised";
-        fond_tracking_status = cv::Scalar(255,0,255);
-    }
-    if(state_slamcore_tracking == 4){
-        string_tracking_status = "Loop closure";
-        fond_tracking_status = cv::Scalar(255,0,0);
     }
 
     rectangle(image, cv::Point(750, 200), cv::Point(1000, 200+50),
@@ -2777,13 +2827,12 @@ void Robot_system::thread_ANALYSER(int frequency)
             th_state = "Running";
         }
 
-        add_intern_sensors(affichage);
-        add_state(affichage, 900, th_state, thread_9_hz, fond_th9);
-        add_lines(affichage);
-
         // ADD STATE SLAMCORE TRACKING.
         add_state_slamcore(affichage);
 
+        add_intern_sensors(affichage);
+        add_state(affichage, 900, th_state, thread_9_hz, fond_th9);
+        add_lines(affichage);
 
         cv::imshow("Interface analyse vision.", affichage);
         // char c=(char)cv::waitKey(25);
