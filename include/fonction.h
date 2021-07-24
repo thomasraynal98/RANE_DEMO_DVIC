@@ -349,18 +349,22 @@ struct Robot_sensor
     std::vector<int> proximity_sensor_detection(int threshold_direct, int threshold_latera, double frequency)
     {   
         /* INPUT:
-        threshold_direct  : threshold de detection d'obstacle frontale et arrière. (en mm)
-        threshold_latera  : threshold de detection lateral FL/FR/BL/BR. (en mm)
-        frequency         : to generate the threshold_comptor. (en Hz)
+            threshold_direct  : threshold de detection d'obstacle frontale et arrière. (en mm)
+            threshold_latera  : threshold de detection lateral FL/FR/BL/BR. (en mm)
+            frequency         : to generate the threshold_comptor. (en Hz)
 
           OUTPUT: 
-        obstacle_position : return vector of id of obstrued ultrason sensor.
+            obstacle_position : return vector of id of obstrued ultrason sensor.
         */
 
+        /* Output. */
         std::vector<int> obstacle_position;
-        // int threshold_comptor           = frequency / 6; // it's like say 250ms.
+
+        /* Threshold that represent 1/6 seconds. */
         int threshold_comptor = frequency / 6;
 
+        /* If sensor value less than threshold detect increment contact, and if number of contact
+        is bigger than than threshold_comptor, declare contact as an real object. */
         if(ultrasonic.ulF0 < threshold_latera && ultrasonic.ulF0 != 0) { ultra_detect.nbulF0 += 1;}
         else{ ultra_detect.nbulF0 = 0;}
         if(ultrasonic.ulF1 < threshold_direct && ultrasonic.ulF1 != 0) { ultra_detect.nbulF1 += 1;}
@@ -376,7 +380,6 @@ struct Robot_sensor
         if(ultrasonic.ulB2 < threshold_latera && ultrasonic.ulB2 != 0) { ultra_detect.nbulB2 += 1;}
         else{ ultra_detect.nbulB2 = 0;}
 
-        /* Update Ultrasonic_obstacle detection. */
         if(ultra_detect.nbulF0 >= threshold_comptor){ ultra_obstacle.obsulF0 = true; obstacle_position.push_back(0);}
         else{ ultra_obstacle.obsulF0 = false;}
         if(ultra_detect.nbulF1 >= threshold_comptor){ ultra_obstacle.obsulF1 = true; obstacle_position.push_back(1);}
@@ -514,25 +517,22 @@ struct Robot_sensor
         return -1;
     }
 
-
-
     bool detect_wall_situation()
     {
         /*
             DESCRIPTION: this function will detect if we are
-            going into a wall.
+                going into a wall.
+
+            TODO : Complete todo because in this case, in corridor option we can
+                detect all right and left wall configuration.
         */
 
-        // double D4              = 2 * cos(architecture.angle_ultrasensor*M_PI/180) / ultrasonic.ulF0 ;
-        // double estimation_area = D4/((D4+architecture.space_between_front_sensor+architecture.space_between_front_lateral) * ultrasonic.ulF1);
+        /* LEFT WALL. */
         double alpha           = atan((ultrasonic.ulF1-ultrasonic.ulF0*sin(architecture.angle_ultrasensor*M_PI/180))/(ultrasonic.ulF0*cos(architecture.angle_ultrasensor*M_PI/180-architecture.distance_co_captor)));
         double estimation_area = tan(alpha)*(architecture.distance_co_captor+architecture.distance_centraux)+ultrasonic.ulF1;
-
-
         double threshold_area  = 100.0;
-        // if(ultra_obstacle.obsulF0 && ultra_obstacle.obsulF1 && \
-        // ultra_obstacle.obsulF2)
-        // {
+
+        // TODO : put obstacle verification, and Goforward validation.
         if(ultrasonic.ulF2 >= (estimation_area - threshold_area) && \
         ultrasonic.ulF2 <= (estimation_area + threshold_area))
         {
@@ -543,33 +543,22 @@ struct Robot_sensor
             detection_analyse.isWallDetectionLeft = false;
         }
         detection_analyse.estimateLeftWall = estimation_area; //debug
-        // }
-        // else
-        // {
-        //     detection_analyse.estimateLeftWall = -1; //debug
-        // }
 
+        /* RIGHT WALL. */
         alpha           = atan((ultrasonic.ulF2-ultrasonic.ulF3*sin(architecture.angle_ultrasensor*M_PI/180))/(ultrasonic.ulF3*cos(architecture.angle_ultrasensor*M_PI/180-architecture.distance_co_captor)));
         estimation_area = tan(alpha)*(architecture.distance_co_captor+architecture.distance_centraux)+ultrasonic.ulF2;
-
-        // if(ultra_obstacle.obsulF1 && ultra_obstacle.obsulF2 && \
-        // ultra_obstacle.obsulF3)
-        // {
-            if(ultrasonic.ulF1 >= (estimation_area - threshold_area) && \
-            ultrasonic.ulF1 <= (estimation_area + threshold_area))
-            {
-                detection_analyse.isWallDetectionRight = true;
-            }
-            else
-            {
-                detection_analyse.isWallDetectionRight = false;
-            }
-            detection_analyse.estimateRightWall = estimation_area; //debug
-        // }
-        // else
-        // {
-        //     detection_analyse.estimateRightWall = -1; //debug
-        // }
+        
+        // TODO : same that LEFT WALL.
+        if(ultrasonic.ulF1 >= (estimation_area - threshold_area) && \
+        ultrasonic.ulF1 <= (estimation_area + threshold_area))
+        {
+            detection_analyse.isWallDetectionRight = true;
+        }
+        else
+        {
+            detection_analyse.isWallDetectionRight = false;
+        }
+        detection_analyse.estimateRightWall = estimation_area; //debug
     }
 };
 

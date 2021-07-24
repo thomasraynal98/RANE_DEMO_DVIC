@@ -123,11 +123,10 @@ class Robot_system
         // CONSTRUCTEUR.
         Robot_system(std::string val_id);
 
-        // FONCTION.
+        // FONCTION MICROCONTROLER.
         std::string get_id();
         LibSerial::SerialPort* get_available_port(const int debug_mode, const std::string& message, bool wait_option);
         bool match_ping_pong(std::string ping, std::string pong);
-        float round(float var);
         void get_interne_data();
 
         // FONCTION INITIALISATION.
@@ -153,13 +152,18 @@ class Robot_system
         double compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext);
         void select_target_keypoint();
         void return_nearest_path_keypoint(double threshold);
-        void cellIsReach();
+        bool cellIsReach();
         bool destination_reach();
-        void manual_mode_security_sensor();
         bool isInVect(std::vector<int> vector, int stuf);
+
+        // FONCTION MODE.
+        void manual_mode_process();
+        void manual_mode_security_sensor();
+        bool autonomous_mode_safety_stop_checking();
         void autonomous_mode_ultrasonic_integration();
 
         // FONCTION MOTOR.
+        void secure_command_transmission();
         void compute_motor_autocommande();
 
         // FONCTION DRAW ANALYSE / DEBUG
@@ -178,6 +182,7 @@ class Robot_system
         void debug_init_debug_map();
         void debug_init_sensor();
         void debug_autonav(cv::Mat image);
+        float round(float var);
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

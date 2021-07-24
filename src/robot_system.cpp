@@ -38,6 +38,578 @@
 #include "../include/robot_system.h"
 #include "../include/fonction.h"
 
+// THREAD.
+void Robot_system::thread_LOCALISATION(int frequency)
+{
+    /*
+        DESCRIPTION: this thread will compute the SLAM algorythme
+            and get the position of robot on the current map.
+    */
+
+    /* TIMING VARIABLE TO OPTIMISE FREQUENCY. */
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
+    /* START SLAM. */
+    while(true)
+    {   
+        /* TIMING VARIABLE. */
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_1_hz                = 1000/(double)time_span.count();
+        thread_1_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)(time_of_loop));
+        std::this_thread::sleep_until(next);
+        /* END TIMING VARIABLE. */
+
+        if(slam_process_state)
+        {
+            slamcore->start();
+
+            while(slamcore->spinOnce())
+            {   
+                // If we are in autonav, update distance_RKP and target_angle.
+                if(!possible_candidate_target_keypoint.empty() && robot_general_state == Robot_state().autonomous_nav)
+                {
+                    for(int i = 0; i < keypoints_path.size(); i++)
+                    {
+                        keypoints_path[i].distance_RKP = compute_distance_RPK(keypoints_path[i].coordinate)*0.05;
+                        keypoints_path[i].target_angle = compute_target_angle(keypoints_path[i].coordinate);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Robot_system::thread_COMMANDE(int frequency)
+{
+    /*
+        DESCRIPTION: this thread will get all input data and user
+            information to command all composant. It's the major
+            and most important thread.
+    */
+
+    /* TIMING VARIABLE TO OPTIMISE FREQUENCY. */
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
+    while(true)
+    {   
+        /* TIMING VARIABLE. */
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_2_hz                = 1000/(double)time_span.count();
+        thread_2_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        /* END TIMING VARIABLE. */
+
+        /* List of process to do before each action. */
+        from_3DW_to_2DM();
+
+        /* All mode of the robot. */
+        if(robot_general_state == Robot_state().initialisation)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is automatocly activate when the robot start
+                    and are checking for map.
+            */
+        }
+        if(robot_general_state == Robot_state().waiting)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when users don't send new information
+                    but the initialisation process of robot is completed.
+            */
+
+            robot_control.manual_new_command(0);
+        }
+        if(robot_general_state == Robot_state().approach)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when robot is charging, is a version 
+                    of waiting mode.
+            */
+        }
+        if(robot_general_state == Robot_state().compute_nav)
+        {   
+            /*
+                MODE DESCRIPTION:
+                    This mode is activate when users send a new destination_point,
+                    or when the autonav system need to recompute new path because
+                    there are an obstacle.
+                    So compute a new path with A* path planning algorythme.
+            */
+
+            /* Create Pair object from our position. */
+            Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
+
+            /* Block the robot during this process. */
+            robot_control.manual_new_command(0);
+            secure_command_transmission();
+
+            /* Compute the path. */
+            if(aStarSearch(map_weighted, current_pose, destination_point))
+            {
+                /* Succes so get target keypoint. */
+                select_target_keypoint();
+
+                /* Check if we reach it. */
+                cellIsReach();
+
+                /* Change mode. */
+                robot_general_state = Robot_state().autonomous_nav;
+            }
+            else
+            {
+                /* We get a problem on path planning process. */
+                robot_general_state = Robot_state().warning;
+            }
+        }
+        if(robot_general_state == Robot_state().autonomous_nav)
+        {   
+            /*
+                MODE DESCRIPTION:
+                    This mode is run after compute_nav mode if this one is successful
+                    and a keypoints_path was computed. This goal is to found the current
+                    target_keypoint, check slam command, check ultrason command, and 
+                    choose witch command procision will be send to robot.
+            */
+            
+            /* Select current target keypoint and check if we reach them. */
+            select_target_keypoint();
+            cellIsReach();
+
+            /* Check if destination keypoints is reach. 
+            Else, compute motor commande. */
+            if(destination_reach()) { robot_control.manual_new_command(0); robot_control.origin_commande = 1;}
+            else{ compute_motor_autocommande();}
+
+            /* Introduce the ultrasonsensor. If condition are together,
+            maybe this part will compute a new motor autocommande. */
+            autonomous_mode_ultrasonic_integration();
+
+            /* Check if we are in security mode since enought time. */
+            auto now = std::chrono::high_resolution_clock::now();
+            if(autonomous_mode_safety_stop_checking())
+            {
+                /* If we are not lost. We are probably in front of an obstacle
+                so we will recompute a new path. */
+            }
+        }
+        if(robot_general_state == Robot_state().home)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is a version of autonomous_nav but there are
+                    only one destination, the home area. This destination
+                    is just in front of the charger pad. And after that
+                    the robot can if you want pass in approach mode for
+                    docking.
+            */
+        }
+        if(robot_general_state == Robot_state().approach)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow robot to dock on the docking pad for
+                    charging process.
+            */
+        }
+        if(robot_general_state == Robot_state().manual)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow user to manualy control the robot from the
+                    API, in this thread we only change the robot_control
+                    variable and this information is send in thread_SPEAKER().
+            */
+
+            /* Manual process. */
+            manual_mode_process();
+
+            /* Important function to call when you add new command. */
+            secure_command_transmission();
+
+            /* Security check. */
+            manual_mode_security_sensor();
+        }
+        if(robot_general_state == Robot_state().warning)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is automaticly activate when a problem is 
+                    detected during robot process.
+            */
+
+           robot_control.manual_new_command(0);
+        }
+        if(robot_general_state == Robot_state().reset)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode allow user to reset the robot.
+            */
+
+           robot_control.manual_new_command(0);
+        }
+    
+        /* Transmit new command to microcontroler. */
+        secure_command_transmission();
+    }
+}
+
+void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string pong_message, std::string micro_name)
+{   
+    /*
+        DESCRIPTION: this thread will send ping message all XX00ms,
+            it will also manage the deconnection and reconnection
+            of microcontroler.
+        INPUT      : 
+        * serial_port    > the object with serial connection.
+        * state          > the state of robot.
+                         >> 0 = INIT.
+                         >> 1 = CONNECT.
+                         >> 2 = DISCONNECT.
+                         >> 3 = MUTE.
+        * pong_message   > the answer of microcontroler after a ping message.
+        * ping_frequence > the frequence of ping.
+        * micro_name     > the name of the microcontroler (A) ou (B).
+    */
+    bool debug = true;
+
+    // TIME VARIABLE
+    int time_of_ping     = 500;                                                  // (2Hz) time wait until ping.
+    int time_of_loop     = 1000/frequency;                                       // this is the real factor of Hz of this thread.
+    int time_since_lost  = 500;                                                  // time to declare the port lost and close.
+    bool is_lost         = false;
+
+    std::chrono::high_resolution_clock::time_point timer_start, current_timer;
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+    auto last_ping_time = std::chrono::high_resolution_clock::now();
+
+    // MESSAGE.
+    std::string message = "0/";
+
+    // ANALYSE STATS.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span2;
+
+    while(true)
+    {   
+        // TIMING VARIABLE.
+        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
+        time_span2 = x-last_loop_time;
+        if(micro_name == "A"){
+            thread_4_hz = 1000/(double)time_span2.count();
+            thread_4_last_hz_update = std::chrono::high_resolution_clock::now();
+        }
+        if(micro_name == "B"){
+            thread_6_hz = 1000/(double)time_span2.count();
+            thread_6_last_hz_update = std::chrono::high_resolution_clock::now();
+        }
+        last_loop_time = std::chrono::high_resolution_clock::now();
+
+        // send ping all 500ms.
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+
+        /* Ping checking. */
+        auto tc = std::chrono::high_resolution_clock::now();
+        time_span = tc - last_ping_time;
+        if((int)time_span.count() > time_of_ping)
+        {
+            if(*serial_port != NULL)
+            {
+                // std::cout << "[PING:" << message+micro_name << "]\n";
+                try{
+                    (**serial_port).Write(message+micro_name);
+                    is_lost = false;
+                    last_ping_time = std::chrono::high_resolution_clock::now();
+                }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex)
+                {
+                    if(!is_lost)
+                    {
+                        // we stard timer.
+                        timer_start = std::chrono::high_resolution_clock::now();
+                        is_lost = true;
+                    }
+
+                    // if lost for more than XX00ms we close it.
+                    current_timer = std::chrono::high_resolution_clock::now();
+                    time_span = current_timer - timer_start;
+                    if((int)time_span.count() > time_since_lost)
+                    {
+                        // close connection.
+                        (**serial_port).Close();
+                        *serial_port = NULL;
+                        state = 2;
+                    }
+                }
+            }
+            else
+            {
+                // we are disconnect.
+                state = 2;
+                // we try to found it.
+                *serial_port = get_available_port(0, pong_message, true);
+            }
+        }
+
+        if(*serial_port != NULL)
+        {
+            // for Microcontroler A.
+            if(micro_name == "A" && !(robot_control.isTransmitA))
+            {
+                robot_control.compute_message_microA();
+
+                try{
+                    (**serial_port).Write(robot_control.message_microcontrolerA);
+                }
+                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                catch(std::runtime_error ex){}
+                
+                // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+            }
+            // for Microcontroler B.
+            if(micro_name == "B")
+            {
+                if(!(robot_control.isTransmitB))
+                {
+                    robot_control.compute_message_microB();
+
+                    try{
+                        (**serial_port).Write(robot_control.message_microcontrolerB);
+                    }
+                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
+                    catch(std::runtime_error ex){}
+                    
+                    // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
+                }
+
+                /* Robot are asking for sensor information al frequency/2 cadense. */
+                if(debug)
+                {
+                    debug = !debug;
+                    try{
+                        (**serial_port).Write("2/X");
+                    }
+                    catch(LibSerial::NotOpen ex){}
+                    catch(std::runtime_error ex){}
+                }
+                else{
+                    debug = !debug;
+                }
+            }
+        }
+    }
+}
+
+void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name)
+{   
+    // note: special use of frequency parameter in this case.
+
+    //last_ping
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point t2;
+    std::chrono::duration<double, std::milli> time_span;
+
+    //max time without listen
+    int time_since_mute = 1000;                                  // in ms.
+    int time_since_null = 200;                                   // in ms.
+
+    // ANALYSE STATS.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span2;
+
+    while(true)
+    {   
+        // TIMING VARIABLE.
+        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
+        time_span2 = x-last_loop_time;
+        if(micro_name == "A"){
+            thread_3_hz = 1000/(double)time_span2.count();
+            thread_3_last_hz_update = std::chrono::high_resolution_clock::now();
+        }
+        if(micro_name == "B"){
+            thread_5_hz = 1000/(double)time_span2.count();
+            thread_5_last_hz_update = std::chrono::high_resolution_clock::now();
+        }
+        last_loop_time = std::chrono::high_resolution_clock::now();
+        
+        std::string reponse;
+        char stop = '\n';   
+        const unsigned int msTimeout = 1000/frequency;                      // wait 100ms before pass to next.
+
+        if(*serial_port != NULL)
+        {
+            if((**serial_port).IsOpen())
+            {
+                try{(**serial_port).ReadLine(reponse, stop, msTimeout);}
+                catch(std::runtime_error ex){;}
+
+                if(reponse.size() > 0)
+                {
+                    // read int de categorie.
+                    const char delim = '/';
+                    std::vector<std::string> data_brute;
+                    tokenize(reponse, delim, data_brute);
+
+                    std::string::size_type sz;     // alias of size_t
+                    // int de categorie = 0 : ping message.
+
+                    try
+                    {           
+                        if(std::stold(data_brute[0],&sz) == 0)
+                        {
+                            if(match_ping_pong(message_pong, reponse))
+                            {
+                                t1 = std::chrono::high_resolution_clock::now();
+                            }
+
+                            // Comparator.
+                            t2 = std::chrono::high_resolution_clock::now();
+                            time_span = t2 - t1;
+                            if((int)time_span.count() > time_since_mute)
+                            {
+                                // STATE=MUTE.
+                                state = 3;
+                            }
+                            else{
+                                // STATE=CONNECT.
+                                state = 1;
+                            }
+                        }
+                        
+                        // int de categorie = 1 : command pong message.
+                        if(std::stold(data_brute[0],&sz) == 1)
+                        {
+                            if(match_ping_pong(robot_control.message_microcontrolerA, reponse) && micro_name == "A")
+                            {
+                                robot_control.isTransmitA = true;
+                                robot_control_last_send  = robot_control;
+                            }
+                            if(match_ping_pong(robot_control.message_microcontrolerB, reponse) && micro_name == "B")
+                            {
+                                robot_control.isTransmitB = true;
+                                robot_control_last_send.change_servo(robot_control);
+                            }
+                        }
+
+                        // int de categorie = 2 : sensor message.
+                        if(std::stold(data_brute[0],&sz) == 2 && data_brute.size() == 10)
+                        {
+                            robot_sensor_data.ultrasonic.ulF0 = std::stold(data_brute[1],&sz);
+                            robot_sensor_data.ultrasonic.ulF1 = std::stold(data_brute[2],&sz);
+                            robot_sensor_data.ultrasonic.ulF2 = std::stold(data_brute[3],&sz);
+                            robot_sensor_data.ultrasonic.ulF3 = std::stold(data_brute[4],&sz);
+                            robot_sensor_data.ultrasonic.ulB0 = std::stold(data_brute[5],&sz);
+                            robot_sensor_data.ultrasonic.ulB1 = std::stold(data_brute[6],&sz);
+                            robot_sensor_data.ultrasonic.ulB2 = std::stold(data_brute[7],&sz);
+                            robot_sensor_data.energy.voltage  = std::stold(data_brute[8],&sz);
+                            robot_sensor_data.energy.current  = std::stold(data_brute[9],&sz);
+                        }
+                    }
+                    catch(...)
+                    {}                    
+                }
+            }
+        }
+        else{
+            // to evoid speed loop, wait 200ms if serial_port is lost.
+            usleep(time_since_null);
+        }
+    }
+}
+
+void Robot_system::thread_SERVER_LISTEN(int frequency)
+{
+    /*
+        DESCRIPTION: this thread will listen the server and the different order.
+    */
+
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
+    while(true)
+    {   
+        // TIMING VARIABLE.
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_7_hz                = 1000/(double)time_span.count();
+        thread_7_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+
+        // END TIMING VARIABLE.
+        // std::cout << "[THREAD-7]\n";
+
+        // TODO: NO EXPLICATION REQUIRED.
+        // destination_point.first  = 96;
+        // destination_point.second = 76;
+        std::cout << "READ DESTINATION>";
+        int rien;
+        std::cin >> rien;
+        destination_point.first  = 96;
+        destination_point.second = 76;
+        robot_general_state = Robot_state().compute_nav;
+        std::cout << robot_general_state << std::endl;
+        // robot_control.manual_commande_message = rien;
+        // robot_general_state = Robot_state().manual;
+    }
+}
+
+void Robot_system::thread_SERVER_SPEAKER(int frequency)
+{
+    /*
+        DESCRIPTION: this thread will speak to the server about all sensor and
+            data from the robot. Is
+    */
+
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
+    while(true)
+    {   
+        // TIMING VARIABLE.
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_8_hz                = 1000/(double)time_span.count();
+        thread_8_last_hz_update    = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        // END TIMING VARIABLE.
+
+        // GET INTERNE VARIABLE BEFORE SEND.
+        get_interne_data();
+
+        // std::cout << "[THREAD-8]\n";
+    }
+}
+
 // CONSTRUCTOR FOR THE MAIN CLASS.
 Robot_system::Robot_system(std::string val_id)
 {   
@@ -74,7 +646,7 @@ Robot_system::Robot_system(std::string val_id)
 Robot_state::Robot_state()
 {}
 
-// FONCTION.
+// FONCTION MICROCONTROLER.
 std::string Robot_system::get_id()
 {
     return robot_id;
@@ -539,19 +1111,15 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 		for (int add_x = -1; add_x <= 1; add_x++) {
 			for (int add_y = -1; add_y <= 1; add_y++) {
 				Pair neighbour(i + add_x, j + add_y);
-				// Only process this cell if this is a valid
-				// one
+				// Only process this cell if this is a valid one.
 				if (isValid(grid, neighbour)) {
-					// If the destination cell is the same
-					// as the current successor
+					// If the destination cell is the same as the current successor.
 					if (isDestination(neighbour, dest)) 
-                    {   // Set the Parent of
-                        // the destination cell
+                    {   
+                        // Set the Parent of the destination cell.
 						cellDetails[neighbour.first][neighbour.second].parent = { i, j };
-						printf("The destination cell is found\n");
 
-
-                        // Show. //////////////////////////////////////////////////////////////////
+                        /* Process the complete path. */
                         std::stack<Pair> Path;
                         int row = dest.first;
                         int col = dest.second;
@@ -563,7 +1131,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
                             col = next_node.second;
                         } while (cellDetails[row][col].parent != next_node);
                         
-
+                        /* Transform the brut path to keypoint path. */
                         from_global_path_to_keypoints_path(Path);
 
 						return true;
@@ -574,10 +1142,15 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 					else if (!closedList[neighbour.first][neighbour.second] && isUnBlocked(grid, neighbour)) 
                     {
 						double gNew, hNew, fNew, tNew;
+
+                        /* Add weight to gNew if path is in proximity area. */
+
                         if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 255)
 						    {gNew = cellDetails[i][j].g + 1.0;}
                         if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 200)
 						    {gNew = cellDetails[i][j].g + 7.0;}
+                        
+                        /* Compute distance from source and destination. */
 						hNew = calculateHValue(neighbour, dest);
                         tNew = calculateHValue(neighbour, src);
 
@@ -911,19 +1484,19 @@ void Robot_system::select_target_keypoint()
                 > 1. (YES) distance_RKP
                 > 2. (YES) target_angle
                 > 3. (YES) isReach  
-                > 4. (NO) distance_KPD
+                > 4. (YES) distance_KPD
         PS         : that can be a good feature to integrate the neural 
             network in this process. Or to integrate a variable that say
             if there are an object between robot and kp.
     */
 
-    // MAKE SHURE distance_RPK and target_angle was updated.
-
-    // part 1. get pointor of the points in a distance of less then "threshold".
-    double threshold = 1.5;
+    /* PART 1. Get all pointor from keypoint vector that are in a range
+    of threshold from robot. */
+    double threshold = 3.0; //in meter.
     return_nearest_path_keypoint(threshold);
 
-    // part 2. get the max value for normalization.
+    /* PART 2. We need to normalise all variable so first we get the max
+    value of all variable. */
     double max_distance_RKP = 0;
     double max_distance_KPD = 0;
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
@@ -938,12 +1511,14 @@ void Robot_system::select_target_keypoint()
         }
     }
 
-    // part 3. compute note of the possible candidate.
+    /* PART 3. Compute the target keypoint score of all this data. */
     std::vector<double> possible_candidate_target_keypoint_note;
+
     double weight_distance_RKP = 0.3;
     double weight_target_angle = 0.7;
     double weight_distance_KPD = 0.5;
     double weight_isReach      = -0.4;
+
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
         double candidate_note    = 0;
@@ -957,7 +1532,7 @@ void Robot_system::select_target_keypoint()
         possible_candidate_target_keypoint_note.push_back(candidate_note);
     }
 
-    // part 4. select the best one.
+    /* PART 4. Select the better one. */
     double max_note = 0;
     int index_candidate = 0;
     for(int i = 0; i < possible_candidate_target_keypoint_note.size(); i++)
@@ -969,7 +1544,7 @@ void Robot_system::select_target_keypoint()
         }
     }
 
-    // part 5. add target point.
+    /* PART 5. Init the current target_keypoint. */
     target_keypoint = possible_candidate_target_keypoint[index_candidate];
 }
 
@@ -990,7 +1565,7 @@ void Robot_system::return_nearest_path_keypoint(double threshold)
     }
 }
 
-void Robot_system::cellIsReach()
+bool Robot_system::cellIsReach()
 {
     /*
         DESCRIPTION: this function will check if we reach the current
@@ -1001,7 +1576,9 @@ void Robot_system::cellIsReach()
     if(target_keypoint->distance_RKP < target_keypoint->distance_validation)
     {
         target_keypoint->isReach = true;
+        return true;
     }
+    return false;
 }
 
 bool Robot_system::destination_reach()
@@ -1031,6 +1608,26 @@ bool Robot_system::isInVect(std::vector<int> vector, int stuf)
     return false;
 }
 
+// FONCTION MODE.
+
+void Robot_system::manual_mode_process()
+{
+    /*
+        DESCRIPTION: this function is call in manual mode to transform
+            user request to motor command.
+    */
+
+    if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0);}
+    if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1);}
+    if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2);}
+    if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3);}
+    if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4);}
+    if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5);}
+    if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6);}
+    if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7);}
+    if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8);}
+}
+
 void Robot_system::manual_mode_security_sensor()
 {
     /*
@@ -1038,13 +1635,13 @@ void Robot_system::manual_mode_security_sensor()
             and will shake if the path is clear for user command.
     */
 
-    auto obs_detect = robot_sensor_data.proximity_sensor_detection(150.0, 150.0, thread_2_hz);
+    auto obs_detect = robot_sensor_data.proximity_sensor_detection(200.0, 150.0, thread_2_hz);
 
     if(robot_control.goForward && (isInVect(obs_detect, 0) || isInVect(obs_detect, 1) || \
     isInVect(obs_detect, 2) || isInVect(obs_detect, 3)))
     {
         /* want to go forward but is blocked. */
-        std::cout << "[STOP]" << std::endl;
+        std::cout << "[AUTO MANUAL STOP]" << std::endl;
         robot_control.manual_new_command(0);
         robot_control.compute_message_microA();
         robot_control.compute_message_microB();
@@ -1055,7 +1652,7 @@ void Robot_system::manual_mode_security_sensor()
     isInVect(obs_detect, 6)))
     {
         /* want to go backward but is blocked. */
-        std::cout << "[STOP]" << std::endl;
+        std::cout << "[AUTO MANUAL STOP]" << std::endl;
         robot_control.manual_new_command(0);
         robot_control.compute_message_microA();
         robot_control.compute_message_microB();
@@ -1069,10 +1666,15 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
     /*
         DESCRIPTION: this function is call in thread_command when we are in
             autonomous mode and integrate ultrasonic sensor data to the 
-            general algorythme process and add the wall follow process.
+            general algorythme process and add the wall follow process,
+            corridor mode and safety obstacle algorythme.
     */
-    double angle_threshold = 40.0; //en deg.
-    double diff_threshold = 0.0; //difference threshold.
+
+    /* angle_threshold is a data use in corridor process validation, if 
+    the target_angle of target_keypoint is bellow this threshold, we 
+    can have corridor mode. */
+    double angle_threshold = 40.0;  //en deg.
+    double diff_threshold = 0.0;    //difference threshold between two ultrason data.
 
     /* Update proximity sensor information. */
     robot_sensor_data.proximity_sensor_detection(300.0, 600.0, thread_2_hz);
@@ -1081,9 +1683,9 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
     if(robot_sensor_data.detect_corridor_situation() && \
     (target_keypoint->target_angle <= angle_threshold))
     {
-        /* Check the current CORIDOR option configuration. */
+        /* Check the current CORRIDOR option configuration. */
         int cfg_corridor = robot_sensor_data.get_corridor_configuration();
-        std::cout << "[CORRIDOR:" << cfg_corridor << "]\n";
+
         /* Front configuration. */
         if(cfg_corridor == 0)
         {
@@ -1152,7 +1754,6 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         {
             // no code required.
         }
-
     }
 
     /* Detect if we are forward in a wall. */
@@ -1177,38 +1778,40 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
 
     /* Safety check. */
     double safety_threshold = 130.0; // en mm.
-    // TODO: debug.
-    std::cout << "[OBSTACLEFRONT:" << robot_sensor_data.ultra_obstacle.obsulF1 << "/" << robot_sensor_data.ultra_obstacle.obsulF2 << "/GoForward:" << robot_control.goForward << "]\n";
     if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
     ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
     (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)))
     {   
-        // TODO : add goForward.
-        // if(!robot_sensor_data.detection_analyse.isSecurityStop)
-        // {
-            robot_control.manual_new_command(0); //stop.
-            robot_control.origin_commande                      = 5;
-            if(robot_sensor_data.detection_analyse.isSecurityStop == false)
-            {
-                robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
-            }
-            robot_sensor_data.detection_analyse.isSecurityStop = true;
-        // }
+        // TODO : add goForward, werification.
+
+        robot_control.manual_new_command(0); //stop.
+        robot_control.origin_commande = 5;
+        if(robot_sensor_data.detection_analyse.isSecurityStop == false)
+        {
+            robot_sensor_data.detection_analyse.time_stop = std::chrono::high_resolution_clock::now();
+        }
+        robot_sensor_data.detection_analyse.isSecurityStop = true;
     }
     else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
-    // if((robot_sensor_data.ultra_obstacle.obsulB1) && \
-    // robot_sensor_data.ultrasonic.ulB1 < safety_threshold && \ 
-    // robot_control.goBackward)
-    // {
-    //     if(!(robot_sensor_data.detection_analyse.isSecurityStop))
-    //     {
-    //         robot_control.manual_new_command(0); //stop.
-    //         robot_control.origin_commande                      = 5;
-    //         robot_sensor_data.detection_analyse.isSecurityStop = true;
-    //         robot_sensor_data.detection_analyse.time_stop      = std::chrono::high_resolution_clock::now();
-    //     }
-    // }
-    // else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
+}
+
+bool Robot_system::autonomous_mode_safety_stop_checking()
+{
+    /*
+        DESCRIPTION: this function will check if the robot is stop since enough time
+            just after detect frontal obstacle on this path.
+    */
+
+    auto now = std::chrono::high_resolution_clock::now();
+    if(robot_sensor_data.detection_analyse.isSecurityStop)
+    {
+        robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
+    }
+    if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
+    {
+        return true;
+    }
+    return false;
 }
 
 // FONCTION MOTOR.
@@ -1216,23 +1819,21 @@ void Robot_system::compute_motor_autocommande()
 {
     /*
         DESCRIPTION: this function will compute the new commande for motor
-            but the command we will send in microcontroler thread if the
-            command is different of the last one.
+            based on the angle with the target keypoint.
     */
-
-    /* target_angle variable is good but is it between 0 and 180 degres.
-    We don't know if we need to go left or right so we recompute a version on target angle
-    between -180 and 180.*/
 
     double angle_ORIENTATION = robot_position.pixel.y_pixel;
     double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
 
     double distance_deg      = target_keypoint->target_angle;
-    /* Reflechir à une maniere to integrate other variable in this calcule, like speed 
-    or area type. */
-    double dynamic_threshold = 30;
+
+    /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
+    like speed or area type. */
+    double dynamic_threshold = 10;
     
-    // TODO : debug
+    /* target_angle variable is good but is it between 0 and 180 degres.
+    We don't know if we need to go left or right so we recompute a version on target angle
+    between -180 and 180.*/
     if(distance_deg > dynamic_threshold)
     {
         /* Can't go forward, need to rotate or be smooth. */
@@ -1240,27 +1841,31 @@ void Robot_system::compute_motor_autocommande()
         {
             if(angle_RKP - angle_ORIENTATION <= 180)
             {
-                // Right.
-                robot_control.manual_new_command(4);
+                // Right rotation or smooth.
+                if(distance_deg > 20) { robot_control.manual_new_command(4);}
+                else { robot_control.manual_new_command(6);}
 
             }
             else
             {
-                // Left.
-                robot_control.manual_new_command(3);
+                // Left rotation or smooth.
+                if(distance_deg > 20) { robot_control.manual_new_command(3);}
+                else { robot_control.manual_new_command(5);}
             }
         }
         else
         {
             if(angle_ORIENTATION - angle_RKP <= 180)
             {
-                // Left.
-                robot_control.manual_new_command(3);
+                // Left rotation or smooth.
+                if(distance_deg > 20) { robot_control.manual_new_command(3);}
+                else { robot_control.manual_new_command(5);}
             }
             else
             {
-                // Right.
-                robot_control.manual_new_command(4);
+                // Right rotation or smooth.
+                if(distance_deg > 20) { robot_control.manual_new_command(4);}
+                else { robot_control.manual_new_command(6);};
             }
         }
     }
@@ -1273,606 +1878,16 @@ void Robot_system::compute_motor_autocommande()
     robot_control.origin_commande = 1;
 }
 
-// THREAD.
-void Robot_system::thread_LOCALISATION(int frequency)
+void Robot_system::secure_command_transmission()
 {
     /*
-        DESCRIPTION: this thread will compute the SLAM algorythme
-            and get the position of robot on the current map.
+        DESCRIPTION: This important function will insure the transmission of data
+            verifying that the data was well received and understood by the different 
+            microcontrollers.
     */
 
-    // TIMING VARIABLE TO OPTIMISE FREQUENCY.
-    double time_of_loop = 1000/frequency;                  // en milliseconde.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
-
-    // START SLAM.
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        x                          = std::chrono::high_resolution_clock::now();         
-        time_span                  = x-last_loop_time;
-        thread_1_hz                = 1000/(double)time_span.count();
-        thread_1_last_hz_update    = x;
-        last_loop_time             = x;
-        next                       += std::chrono::milliseconds((int)(time_of_loop));
-        std::this_thread::sleep_until(next);
-        // END TIMING VARIABLE.
-
-        if(slam_process_state)
-        {
-            slamcore->start();
-
-            while(slamcore->spinOnce())
-            {   
-                // If we are in autonav, update distance_RKP and target_angle.
-                if(!possible_candidate_target_keypoint.empty() && robot_general_state == Robot_state().autonomous_nav)
-                {
-                    for(int i = 0; i < keypoints_path.size(); i++)
-                    {
-                        keypoints_path[i].distance_RKP = compute_distance_RPK(keypoints_path[i].coordinate)*0.05;
-                        keypoints_path[i].target_angle = compute_target_angle(keypoints_path[i].coordinate);
-                    }
-                }
-            }
-        }
-    }
-}
-
-void Robot_system::thread_COMMANDE(int frequency)
-{
-    /*
-        DESCRIPTION: this thread will get all input data and user
-            information to command all composant.
-    */
-
-    double time_of_loop = 1000/frequency;                  // en milliseconde.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
-
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        x                          = std::chrono::high_resolution_clock::now();         
-        time_span                  = x-last_loop_time;
-        thread_2_hz                = 1000/(double)time_span.count();
-        thread_2_last_hz_update    = x;
-        last_loop_time             = x;
-        next                       += std::chrono::milliseconds((int)time_of_loop);
-        std::this_thread::sleep_until(next);
-        // END TIMING VARIABLE.
-        // std::cout << "[THREAD-2]\n"; ////////////////////////////////////////////////////
-        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
-
-        from_3DW_to_2DM();
-        if(robot_general_state == Robot_state().initialisation)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode is automatocly activate when the robot start
-                    and are checking for map.
-            */
-        }
-        if(robot_general_state == Robot_state().waiting)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode is activate when users don't send new information
-                    but the initialisation process of robot is completed.
-            */
-
-            robot_control.manual_new_command(0);
-        }
-        if(robot_general_state == Robot_state().approach)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode is activate when robot is charging, is a version 
-                    of waiting mode.
-            */
-        }
-        if(robot_general_state == Robot_state().compute_nav)
-        {   
-            /*
-                MODE DESCRIPTION:
-                    This mode is activate when users send a new destination_point,
-                    so we need to compute the A* path planning algorythme.
-            */
-
-            Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
-
-            /*TODO: block robot during this process.*/
-
-            if(aStarSearch(map_weighted, current_pose, destination_point))
-            {
-                std::cout << "[GLOBAL_PATH:compute]\n";
-                select_target_keypoint();
-                cellIsReach();
-                robot_general_state = Robot_state().autonomous_nav;
-            }
-            else
-            {
-                // Problem on aStarSearch.
-                robot_general_state = Robot_state().warning;
-            }
-        }
-        if(robot_general_state == Robot_state().autonomous_nav)
-        {   
-            /*
-                MODE DESCRIPTION:
-                    This mode is run after compute_nav mode if this one is successful
-                    and a keypoints_path was computed. This goal is to found the current
-                    target_keypoint and send command to all different motor.
-            */
-            
-            /* Select current target keypoint and check if we reach them. */
-            select_target_keypoint();
-            cellIsReach();
-
-            /* Check if we destination keypoints is reach. 
-            Else, compute motor commande. */
-            if(destination_reach()) { robot_control.manual_new_command(0); robot_control.origin_commande = 1;}
-            else{ compute_motor_autocommande();}
-
-            /* Introduce the ultrasonsensor. If condition are together,
-            maybe this part will compute a new motor autocommande. */
-            autonomous_mode_ultrasonic_integration();
-
-            /* Check if we have security stop this enought time. */
-            auto now = std::chrono::high_resolution_clock::now();
-            if(robot_sensor_data.detection_analyse.isSecurityStop)
-            {
-                robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
-            }
-            if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
-            {
-                /* Next_code. */
-            }
-
-            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
-            if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
-        }
-        if(robot_general_state == Robot_state().home)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode is a version of autonomous_nav but there are
-                    only one destination, the home area. This destination
-                    is just in front of the charger pad. And after that
-                    the robot can if you want pass in approach mode for
-                    docking.
-            */
-        }
-        if(robot_general_state == Robot_state().approach)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode allow robot to dock on the docking pad for
-                    charging process.
-            */
-        }
-        if(robot_general_state == Robot_state().manual)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode allow user to manualy control the robot from the
-                    interface, in this thread we only change the robot_control
-                    variable and this information is send in thread_SPEAKER().
-            */
-
-            /* Somewhere you actualise manual commande information. */
-
-            if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0);}
-            if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1);}
-            if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2);}
-            if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3);}
-            if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4);}
-            if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5);}
-            if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6);}
-            if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7);}
-            if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8);}
-
-            if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
-            if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
-
-            /*  Security check. */
-            manual_mode_security_sensor();
-        }
-        if(robot_general_state == Robot_state().warning)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode is automaticly activate when a problem is 
-                    detected during robot process.
-            */
-
-           robot_control.manual_new_command(0);
-        }
-        if(robot_general_state == Robot_state().reset)
-        {
-            /*
-                MODE DESCRIPTION:
-                    This mode allow user to reset the robot.
-            */
-
-           robot_control.manual_new_command(0);
-        }
-    }
-}
-
-void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string pong_message, std::string micro_name)
-{   
-    /*
-        DESCRIPTION: this thread will send ping message all XX00ms,
-            it will also manage the deconnection and reconnection
-            of microcontroler.
-        INPUT      : 
-        * serial_port    > the object with serial connection.
-        * state          > the state of robot.
-                         >> 0 = INIT.
-                         >> 1 = CONNECT.
-                         >> 2 = DISCONNECT.
-                         >> 3 = MUTE.
-        * pong_message   > the answer of microcontroler after a ping message.
-        * ping_frequence > the frequence of ping.
-        * micro_name     > the name of the microcontroler (A) ou (B).
-    */
-    bool debug = true;
-
-    // TIME VARIABLE
-    int time_of_ping     = 500;                                                  // (2Hz) time wait until ping.
-    int time_of_loop     = 1000/frequency;                                       // this is the real factor of Hz of this thread.
-    int time_since_lost  = 500;                                                  // time to declare the port lost and close.
-    bool is_lost         = false;
-
-    std::chrono::high_resolution_clock::time_point timer_start, current_timer;
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
-    auto last_ping_time = std::chrono::high_resolution_clock::now();
-
-    std::string message = "0/";
-
-    // ANALYSE STATS.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span2;
-
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span2 = x-last_loop_time;
-        if(micro_name == "A"){
-            thread_4_hz = 1000/(double)time_span2.count();
-            thread_4_last_hz_update = std::chrono::high_resolution_clock::now();
-        }
-        if(micro_name == "B"){
-            thread_6_hz = 1000/(double)time_span2.count();
-            thread_6_last_hz_update = std::chrono::high_resolution_clock::now();
-        }
-        last_loop_time = std::chrono::high_resolution_clock::now();
-
-        // send ping all 50ms.
-        next                       += std::chrono::milliseconds((int)time_of_loop);
-        std::this_thread::sleep_until(next);
-
-        // send ping if last ping was send since time_of_ping.
-        auto tc = std::chrono::high_resolution_clock::now();
-        time_span = tc - last_ping_time;
-        if((int)time_span.count() > time_of_ping)
-        {
-            if(*serial_port != NULL)
-            {
-                // std::cout << "[PING:" << message+micro_name << "]\n";
-                try{
-                    (**serial_port).Write(message+micro_name);
-                    is_lost = false;
-                    last_ping_time = std::chrono::high_resolution_clock::now();
-                }
-                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                catch(std::runtime_error ex)
-                {
-                    if(!is_lost)
-                    {
-                        // we stard timer.
-                        timer_start = std::chrono::high_resolution_clock::now();
-                        is_lost = true;
-                    }
-
-                    // if lost for more than XX00ms we close it.
-                    current_timer = std::chrono::high_resolution_clock::now();
-                    time_span = current_timer - timer_start;
-                    if((int)time_span.count() > time_since_lost)
-                    {
-                        // close connection.
-                        (**serial_port).Close();
-                        *serial_port = NULL;
-                        state = 2;
-                    }
-                }
-            }
-            else
-            {
-                // we are disconnect.
-                state = 2;
-                // we try to found it.
-                *serial_port = get_available_port(0, pong_message, true);
-            }
-        }
-
-        if(*serial_port != NULL)
-        {
-            // for Microcontroler A.
-            if(micro_name == "A" && !(robot_control.isTransmitA))
-            {
-                robot_control.compute_message_microA();
-
-                try{
-                    (**serial_port).Write(robot_control.message_microcontrolerA);
-                }
-                catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                catch(std::runtime_error ex){}
-                
-                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
-            }
-            // for Microcontroler B.
-            if(micro_name == "B")
-            {
-                if(!(robot_control.isTransmitB))
-                {
-                    robot_control.compute_message_microB();
-
-                    try{
-                        (**serial_port).Write(robot_control.message_microcontrolerB);
-                    }
-                    catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
-                    catch(std::runtime_error ex){}
-                    
-                    // std::cout << "[MESSAGE_MICROB_SEND:" << robot_control.message_microcontrolerB << "]\n";
-                }
-
-                //TODO: make this beautiful.
-                if(debug)
-                {
-                    debug = !debug;
-                    // Ask for new sensor information.
-                    try{
-                        (**serial_port).Write("2/X");
-                    }
-                    catch(LibSerial::NotOpen ex){}
-                    catch(std::runtime_error ex){}
-                    // std::cout << "[MESSAGE_MICROB_SEND:2/X]\n";
-                }
-                else{
-                    debug = !debug;
-                }
-            }
-        }
-    }
-}
-
-void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial_port, int& state, std::string message_pong, std::string micro_name)
-{   
-    // note: special use of frequency parameter in this case.
-
-    //last_ping
-    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point t2;
-    std::chrono::duration<double, std::milli> time_span;
-
-    //max time without listen
-    int time_since_mute = 1000;                                  // in ms.
-    int time_since_null = 200;                                   // in ms.
-
-    // ANALYSE STATS.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span2;
-
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        std::chrono::high_resolution_clock::time_point x = std::chrono::high_resolution_clock::now();
-        time_span2 = x-last_loop_time;
-        if(micro_name == "A"){
-            thread_3_hz = 1000/(double)time_span2.count();
-            thread_3_last_hz_update = std::chrono::high_resolution_clock::now();
-        }
-        if(micro_name == "B"){
-            thread_5_hz = 1000/(double)time_span2.count();
-            thread_5_last_hz_update = std::chrono::high_resolution_clock::now();
-        }
-        last_loop_time = std::chrono::high_resolution_clock::now();
-        
-        std::string reponse;
-        char stop = '\n';   
-        const unsigned int msTimeout = 1000/frequency;                      // wait 100ms before pass to next.
-
-        if(*serial_port != NULL)
-        {
-            if((**serial_port).IsOpen())
-            {
-                try{(**serial_port).ReadLine(reponse, stop, msTimeout);}
-                catch(std::runtime_error ex){;}
-
-                if(reponse.size() > 0)
-                {
-                    // read int de categorie.
-                    const char delim = '/';
-                    std::vector<std::string> data_brute;
-                    tokenize(reponse, delim, data_brute);
-
-                    std::string::size_type sz;     // alias of size_t
-                    // int de categorie = 0 : ping message.
-
-                    try
-                    {           
-                        if(std::stold(data_brute[0],&sz) == 0)
-                        {
-                            if(match_ping_pong(message_pong, reponse))
-                            {
-                                t1 = std::chrono::high_resolution_clock::now();
-                            }
-
-                            // Comparator.
-                            t2 = std::chrono::high_resolution_clock::now();
-                            time_span = t2 - t1;
-                            if((int)time_span.count() > time_since_mute)
-                            {
-                                // STATE=MUTE.
-                                state = 3;
-                            }
-                            else{
-                                // STATE=CONNECT.
-                                state = 1;
-                            }
-                        }
-                        
-                        // int de categorie = 1 : command pong message.
-                        if(std::stold(data_brute[0],&sz) == 1)
-                        {
-                            if(match_ping_pong(robot_control.message_microcontrolerA, reponse) && micro_name == "A")
-                            {
-                                robot_control.isTransmitA = true;
-                                robot_control_last_send  = robot_control;
-                            }
-                            if(match_ping_pong(robot_control.message_microcontrolerB, reponse) && micro_name == "B")
-                            {
-                                robot_control.isTransmitB = true;
-                                robot_control_last_send.change_servo(robot_control);
-                            }
-                        }
-
-                        // int de categorie = 2 : sensor message.
-                        if(std::stold(data_brute[0],&sz) == 2 && data_brute.size() == 10)
-                        {
-                            robot_sensor_data.ultrasonic.ulF0 = std::stold(data_brute[1],&sz);
-                            robot_sensor_data.ultrasonic.ulF1 = std::stold(data_brute[2],&sz);
-                            robot_sensor_data.ultrasonic.ulF2 = std::stold(data_brute[3],&sz);
-                            robot_sensor_data.ultrasonic.ulF3 = std::stold(data_brute[4],&sz);
-                            robot_sensor_data.ultrasonic.ulB0 = std::stold(data_brute[5],&sz);
-                            robot_sensor_data.ultrasonic.ulB1 = std::stold(data_brute[6],&sz);
-                            robot_sensor_data.ultrasonic.ulB2 = std::stold(data_brute[7],&sz);
-                            robot_sensor_data.energy.voltage  = std::stold(data_brute[8],&sz);
-                            robot_sensor_data.energy.current  = std::stold(data_brute[9],&sz);
-
-                            /*
-                                PROTECTION CHECKING: We will shake if robot can continue in this
-                                    way. TODO: add checking for autonomous mode.
-                            */
-                            // std::cout << "[PRO:" << robot_control.manual_commande_message << "\n";
-                            // if(robot_general_state == Robot_state().manual)
-                            // {
-                            //     if(robot_control.manual_commande_message == 1 && (robot_sensor_data.proximity_sensor_detection_front() > 0 && robot_sensor_data.proximity_sensor_detection_front() <= 4))
-                            //     {
-                            //         /* want to go forward but is blocked. */
-                            //         std::cout << "[STOP]" << std::endl;
-                            //         robot_control.manual_new_command(0);
-                            //         robot_control.compute_message_microA();
-                            //         robot_control.compute_message_microB();
-                            //         robot_control.isTransmitA = false;
-                            //         robot_control.isTransmitB = false;
-                            //         // robot_general_state == Robot_state().warning
-                            //     }
-                            //     if(robot_control.manual_commande_message == 2 && (robot_sensor_data.proximity_sensor_detection_back() >= 5 && robot_sensor_data.proximity_sensor_detection_back() <= 7))
-                            //     {
-                            //         /* want to go backward but is blocked. */
-                            //         std::cout << "[STOP]" << std::endl;
-                            //         robot_control.manual_new_command(0);
-                            //         robot_control.compute_message_microA();
-                            //         robot_control.compute_message_microB();
-                            //         robot_control.isTransmitA = false;
-                            //         robot_control.isTransmitB = false;
-                            //         // robot_general_state == Robot_state().warning
-                            //     }
-                            // }
-                        }
-                    }
-                    catch(...)
-                    {}                    
-                }
-            }
-        }
-        else{
-            // to evoid speed loop, wait 200ms if serial_port is lost.
-            usleep(time_since_null);
-        }
-    }
-}
-
-void Robot_system::thread_SERVER_LISTEN(int frequency)
-{
-    /*
-        DESCRIPTION: this thread will listen the server and the different order.
-    */
-
-    double time_of_loop = 1000/frequency;                  // en milliseconde.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
-
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        x                          = std::chrono::high_resolution_clock::now();         
-        time_span                  = x-last_loop_time;
-        thread_7_hz                = 1000/(double)time_span.count();
-        thread_7_last_hz_update    = x;
-        last_loop_time             = x;
-        next                       += std::chrono::milliseconds((int)time_of_loop);
-        std::this_thread::sleep_until(next);
-
-        // END TIMING VARIABLE.
-        // std::cout << "[THREAD-7]\n";
-
-        // TODO: NO EXPLICATION REQUIRED.
-        // destination_point.first  = 96;
-        // destination_point.second = 76;
-        std::cout << "READ DESTINATION>";
-        int rien;
-        std::cin >> rien;
-        destination_point.first  = 96;
-        destination_point.second = 76;
-        robot_general_state = Robot_state().compute_nav;
-        std::cout << robot_general_state << std::endl;
-        // robot_control.manual_commande_message = rien;
-        // robot_general_state = Robot_state().manual;
-    }
-}
-
-void Robot_system::thread_SERVER_SPEAKER(int frequency)
-{
-    /*
-        DESCRIPTION: this thread will speak to the server about all sensor and
-            data from the robot. Is
-    */
-
-    double time_of_loop = 1000/frequency;                  // en milliseconde.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
-
-    while(true)
-    {   
-        // TIMING VARIABLE.
-        x                          = std::chrono::high_resolution_clock::now();         
-        time_span                  = x-last_loop_time;
-        thread_8_hz                = 1000/(double)time_span.count();
-        thread_8_last_hz_update    = x;
-        last_loop_time             = x;
-        next                       += std::chrono::milliseconds((int)time_of_loop);
-        std::this_thread::sleep_until(next);
-        // END TIMING VARIABLE.
-
-        // GET INTERNE VARIABLE BEFORE SEND.
-        get_interne_data();
-
-        // std::cout << "[THREAD-8]\n";
-    }
+    if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
+    if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
 }
 
 // THREAD ANALYSER DEBUG.
