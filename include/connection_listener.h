@@ -23,6 +23,11 @@ class connection_listener
         connection_listener(sio::client& h);
         connection_listener();
 
+        connection_listener operator=(connection_listener o)
+        {
+
+        }
+        
         void on_connected();
         void on_close(sio::client::close_reason const& reason);
         void on_fail();

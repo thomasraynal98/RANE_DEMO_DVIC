@@ -71,6 +71,8 @@
         "string.h": "c",
         "serialport.h": "c",
         "serialstream.h": "c",
-        "*.tpp": "cpp"
+        "*.tpp": "cpp",
+        "cfenv": "cpp",
+        "regex": "cpp"
     }
 }
