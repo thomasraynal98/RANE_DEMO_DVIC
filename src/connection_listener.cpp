@@ -18,9 +18,6 @@ handler(h)
 {
 }
 
-connection_listener::connection_listener()
-{}
-
 void connection_listener::on_connected()
 {
     _lock.lock();

@@ -1017,7 +1017,7 @@ void Robot_system::init_socketio()
         DESCRIPTION: todo
     */
 
-    l(h);
+    connection_listener li(h);
     h.set_open_listener(std::bind(&connection_listener::on_connected, &l));
     h.set_close_listener(std::bind(&connection_listener::on_close, &l,std::placeholders::_1));
     h.set_fail_listener(std::bind(&connection_listener::on_fail, &l));
