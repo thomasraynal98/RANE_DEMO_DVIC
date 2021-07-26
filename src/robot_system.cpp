@@ -30,6 +30,8 @@
 #include <thread>
 #include <mutex>
 
+#include <sio_client.h>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -37,6 +39,7 @@
 
 #include "../include/robot_system.h"
 #include "../include/fonction.h"
+#include "../include/connection_listener.h"
 
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
@@ -639,7 +642,10 @@ Robot_system::Robot_system(std::string val_id)
     /* STEP 5. Initialisation microcontroler communication. */
     if(init_microcontroler() != 2) {robot_general_state = Robot_state().warning;}
 
-    /* STEP 6. Initialisation all thread */
+    /* STEP 6. Initialisation connection server. */
+    init_socketio();
+
+    /* STEP 7. Initialisation all thread */
     init_thread_system();
 }
 
@@ -1003,6 +1009,19 @@ void Robot_system::init_thread_system()
     thread_7_listener_SERVER.join();
     // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
+}
+
+void Robot_system::init_socketio()
+{
+    /*
+        DESCRIPTION: todo
+    */
+
+    l(h);
+    h.set_open_listener(std::bind(&connection_listener::on_connected, &l));
+    h.set_close_listener(std::bind(&connection_listener::on_close, &l,std::placeholders::_1));
+    h.set_fail_listener(std::bind(&connection_listener::on_fail, &l));
+    h.connect("http://127.0.0.1:5000");
 }
 
 // FONCTION NAVIGATION.

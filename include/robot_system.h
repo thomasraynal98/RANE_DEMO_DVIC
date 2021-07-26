@@ -20,12 +20,15 @@
 #include <mutex>
 #include <slamcore/slamcore.hpp>
 
+#include <sio_client.h>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
 #include "fonction.h"
+#include "../include/connection_listener.h"
 
 #ifndef ROBOT_SYSTEM_H
 #define ROBOT_SYSTEM_H
@@ -85,6 +88,12 @@ class Robot_system
         double cpu_load;
         double fan_power;
 
+        // VARIABLE COMMUNICATION.
+        sio::socket::ptr current_socket;
+        sio::client h;
+        connection_listener l;
+
+
         // VARIABLE THREAD.
         std::thread thread_1_localisation;
         std::thread thread_2_commande;
@@ -134,6 +143,7 @@ class Robot_system
         bool init_map();
         int init_microcontroler();
         void init_thread_system();
+        void init_socketio();
 
         // FONCTION NAVIGATION.
         bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);
