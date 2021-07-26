@@ -58,7 +58,8 @@ class Robot_system
         Path_keypoint* target_keypoint;
         Pair destination_point;
 
-        // VARIABLE FICHIER.
+        // VARIABLE FICHIER & SYSTEM.
+        System_param parametre;
         std::string path_to_cpu_heat        = "/sys/class/thermal/thermal_zone1/temp";
         std::string path_to_cpu_load        = "/proc/loadavg";
         std::string path_to_fan_power       = "/";
@@ -92,7 +93,6 @@ class Robot_system
         sio::socket::ptr current_socket;
         sio::client h;
         connection_listener l;
-
 
         // VARIABLE THREAD.
         std::thread thread_1_localisation;
@@ -130,7 +130,12 @@ class Robot_system
     public:
 
         // CONSTRUCTEUR.
-        Robot_system(std::string val_id);
+        Robot_system();
+
+        // FONCTION COMMUNICATION.
+        bool update_map(std::string new_localisation, std::string new_map_id, std::string update_link);
+        void check_map();
+        void bind_events();
 
         // FONCTION MICROCONTROLER.
         std::string get_id();
@@ -144,6 +149,7 @@ class Robot_system
         int init_microcontroler();
         void init_thread_system();
         void init_socketio();
+        bool init_basic_data();
 
         // FONCTION NAVIGATION.
         bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);

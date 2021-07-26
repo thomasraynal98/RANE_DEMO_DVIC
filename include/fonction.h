@@ -608,6 +608,37 @@ struct cell {
     }
 };
 
+struct System_param{
+    /*
+        DESCRIPTION: this structure will store all the fixe and
+            brute data on the system.
+    */
+
+    struct Identity
+    {
+        std::string modele{""};
+        std::string version{""};
+        int matricule{-1};
+        std::string exploitation{""};
+        std::string prenom{""};
+    }identity;
+    
+    struct Map
+    {
+        std::string localisation{""};
+        std::string id_map{""};
+        bool StoredMapIsGood{false};
+    }map;
+
+    struct FilePath
+    {
+        std::string path_to_navigation_info{"../data_robot/Navigation/robot_navigation.yaml"};
+        std::string path_to_current_session{"../data_robot/Navigation/map.session"};
+        std::string path_to_weighted_map{"../data_robot/Navigation/map.png"};
+        std::string path_to_identification{"../data_robot/Identification/robot_information.yaml"};
+    }filePath;
+};
+
 bool test(bool is_cool);
 
 void from_quaternion_to_euler(Pose& current_pose);

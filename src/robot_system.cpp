@@ -41,6 +41,90 @@
 #include "../include/fonction.h"
 #include "../include/connection_listener.h"
 
+// FONCTION COMMUNICATION.
+bool Robot_system::update_map(std::string new_localisation, std::string new_map_id, std::string update_link)
+{
+    /*
+        DESCRIPTION: we call this function when the current stored map is not
+            the good one, so we need to update all our file.
+    */
+
+    /* Try to download new .session and .pnj from server. */
+
+    /* If it's good change current .sesson and .pnj by new one. */
+
+    /* Update parametre with this new value. */
+
+    /* Declare StoredMapIsGood == true and pass to waiting mode. */
+}
+
+void Robot_system::check_map()
+{
+    /*
+        DESCRIPTION: the main purpose of this map is to create and send a message
+            that inform server what is the current map using by system.
+    */
+
+    sio::message::ptr test = sio::object_message::create();
+
+    test->get_map()["localisation"] = sio::string_message::create(parametre.map.localisation);
+    test->get_map()["map_id"] = sio::string_message::create(parametre.map.id_map);
+    
+    current_socket->emit("check_map", test);
+}
+
+void Robot_system::bind_events()
+{
+    /*
+        DESCRIPTION: this function store all kind of message that we can receive 
+            from the main API.
+    */
+
+    /* If our current map is the good one. */
+    current_socket->on("good", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
+    {
+        l._lock.lock();
+        parametre.map.StoredMapIsGood = true;
+        l._lock.unlock();
+    }));
+
+    /* If our current map is not the good one, we need to get a new one. */
+    current_socket->on("download", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
+    {
+        l._lock.lock();
+        std::string new_id = data->get_map()["id"]->get_string();
+        std::string new_localisation = data->get_map()["localisation"]->get_string();
+        std::string update_link = data->get_map()["link"]->get_string();
+        parametre.map.StoredMapIsGood = false;
+
+        /* So update map. */
+        update_map(new_localisation, new_id, update_link);
+
+        l._lock.unlock();
+    }));
+
+    /* In manual mode we need that robot do a precise command. */
+    current_socket->on("command_to_do", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
+    {
+        l._lock.lock();
+        robot_general_state = Robot_state().manual;
+        robot_control.manual_commande_message = std::stoi(data->get_string());
+        l._lock.unlock();
+    }));
+
+    /* In autonav mode we need that robot reach a new point. */
+    current_socket->on("position_to_reach", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
+    {
+        l._lock.lock();
+
+        destination_point.first = data->get_map()["i"]->get_int();
+        destination_point.second = data->get_map()["j"]->get_int();
+
+        robot_general_state = Robot_state().compute_nav;
+        l._lock.unlock();
+    }));
+}
+
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
@@ -127,6 +211,16 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode is automatocly activate when the robot start
                     and are checking for map.
             */
+
+            /* Check if our current stored map is the good one. */
+            if(parametre.map.StoredMapIsGood)
+            {
+                robot_general_state = Robot_state().waiting;
+            }
+            else
+            {
+                check_map(); // Need verification from server.
+            }
         }
         if(robot_general_state == Robot_state().waiting)
         {
@@ -614,11 +708,11 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
 }
 
 // CONSTRUCTOR FOR THE MAIN CLASS.
-Robot_system::Robot_system(std::string val_id)
+Robot_system::Robot_system()
 {   
     /* STEP 1. Initialisation basic process. */
     robot_general_state       = Robot_state().initialisation;
-    robot_id                  = val_id;
+    if(!init_basic_data()){robot_general_state = Robot_state().warning;}
     robot_speed               = -1;
     cpu_heat                  = -1;
     cpu_load                  = -1;
@@ -812,6 +906,41 @@ void Robot_system::get_interne_data()
 }
 
 // INITIALISATION FONCTION.
+bool Robot_system::init_basic_data()
+{
+    /*
+        DESCRIPTION: this function will read all information stored in 
+            the folder data_robot and fullfil the system variable.
+    */
+
+    /* Read robot information. */
+    cv::FileStorage fsSettings(parametre.filePath.path_to_identification, cv::FileStorage::READ);
+    if(!fsSettings.isOpened())
+    {
+        std::cerr << "ERROR: Wrong path to settings identification." << std::endl;
+        return false;
+    }
+
+    fsSettings["Param.modele"] >> parametre.identity.modele;
+    fsSettings["Param.version"] >> parametre.identity.version;
+    fsSettings["Param.matricule"] >> parametre.identity.matricule;
+    fsSettings["Param.exploitation"] >> parametre.identity.exploitation;
+    fsSettings["Param.prenom"] >> parametre.identity.prenom;
+
+    /* Read navigation map information. */
+    cv::FileStorage fsSettings2(parametre.filePath.path_to_navigation_info, cv::FileStorage::READ);
+    if(!fsSettings2.isOpened())
+    {
+        std::cerr << "ERROR: Wrong path to settings navigation info." << std::endl;
+        return false;
+    }
+
+    fsSettings2["Param.localisation"] >> parametre.map.localisation;
+    fsSettings2["Param.id_map"] >> parametre.map.id_map;
+
+    return true;
+}
+
 bool Robot_system::init_slam_sdk()
 try
 {
@@ -848,7 +977,7 @@ try
     // ******************************************************************
     // Open the device
     // ******************************************************************
-    slam->openWithSession(path_to_current_session.c_str());
+    slam->openWithSession(parametre.filePath.path_to_current_session.c_str());
     // ******************************************************************
     // Enable all the streams
     // ******************************************************************
@@ -924,10 +1053,10 @@ bool Robot_system::init_map()
         DESCRIPTION: this function will init the map of the current session.
     */
 
-    map_weighted = cv::imread(path_to_weighted_map, cv::IMREAD_GRAYSCALE);
+    map_weighted = cv::imread(parametre.filePath.path_to_weighted_map, cv::IMREAD_GRAYSCALE);
     if(map_weighted.empty())
     {
-        std::cout << "[ERROR] Could not read the image: " << path_to_weighted_map << std::endl;
+        std::cout << "[ERROR] Could not read the image: " << parametre.filePath.path_to_weighted_map << std::endl;
         return false;
     }
 
@@ -995,9 +1124,6 @@ void Robot_system::init_thread_system()
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
     // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
-        
-    /* Initialisation completed. */
-    if(robot_general_state != Robot_state().warning) { robot_general_state = Robot_state().waiting;}
 
     /* Join all thread. */
     thread_1_localisation.join();
@@ -1017,8 +1143,8 @@ void Robot_system::init_socketio()
         DESCRIPTION: todo
     */
 
-    connection_listener li(h);
-    l = li;
+    connection_listener l(h);
+    // l = li;
     h.set_open_listener(std::bind(&connection_listener::on_connected, &l));
     h.set_close_listener(std::bind(&connection_listener::on_close, &l,std::placeholders::_1));
     h.set_fail_listener(std::bind(&connection_listener::on_fail, &l));
