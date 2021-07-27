@@ -13,9 +13,6 @@
 
 #include "../include/connection_listener.h"
 
-bool connect_finish;
-std::condition_variable_any _cond;
-
 void connection_listener::on_connected()
 {
     // _lock.lock();
@@ -34,4 +31,14 @@ void connection_listener::on_fail()
 {
     std::cout<<"sio failed "<<std::endl;
     exit(0);
+}
+
+bool connection_listener::get_connect_finish()
+{
+    return connect_finish;
+}
+
+std::condition_variable_any* connection_listener::get_cond()
+{
+    return &_cond;
 }

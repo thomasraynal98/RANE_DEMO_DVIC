@@ -1,4 +1,4 @@
 %YAML:1.0
-
-Param.localisation: "DVIC"
-Param.id_map: "map_1"
+---
+Param_localisation: DVIC
+Param_id_map: map_1
