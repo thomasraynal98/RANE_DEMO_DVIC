@@ -13,17 +13,15 @@
 
 #include "../include/connection_listener.h"
 
-connection_listener::connection_listener(sio::client& h):
-handler(h)
-{
-}
+bool connect_finish;
+std::condition_variable_any _cond;
 
 void connection_listener::on_connected()
 {
-    _lock.lock();
+    // _lock.lock();
     _cond.notify_all();
     connect_finish = true;
-    _lock.unlock();
+    // _lock.unlock();
 }
 
 void connection_listener::on_close(sio::client::close_reason const& reason)

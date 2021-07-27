@@ -41,6 +41,9 @@
 #include "../include/fonction.h"
 #include "../include/connection_listener.h"
 
+// GLOBAL VARIABLE.
+std::mutex _lock;
+
 // FONCTION COMMUNICATION.
 bool Robot_system::update_map(std::string new_localisation, std::string new_map_id, std::string update_link)
 {
@@ -56,6 +59,7 @@ bool Robot_system::update_map(std::string new_localisation, std::string new_map_
     /* Update parametre with this new value. */
 
     /* Declare StoredMapIsGood == true and pass to waiting mode. */
+    return false;
 }
 
 void Robot_system::check_map()
@@ -83,15 +87,15 @@ void Robot_system::bind_events()
     /* If our current map is the good one. */
     current_socket->on("good", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
-        l._lock.lock();
+        _lock.lock();
         parametre.map.StoredMapIsGood = true;
-        l._lock.unlock();
+        _lock.unlock();
     }));
 
     /* If our current map is not the good one, we need to get a new one. */
     current_socket->on("download", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
-        l._lock.lock();
+        _lock.lock();
         std::string new_id = data->get_map()["id"]->get_string();
         std::string new_localisation = data->get_map()["localisation"]->get_string();
         std::string update_link = data->get_map()["link"]->get_string();
@@ -100,28 +104,28 @@ void Robot_system::bind_events()
         /* So update map. */
         update_map(new_localisation, new_id, update_link);
 
-        l._lock.unlock();
+        _lock.unlock();
     }));
 
     /* In manual mode we need that robot do a precise command. */
     current_socket->on("command_to_do", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
-        l._lock.lock();
+        _lock.lock();
         robot_general_state = Robot_state().manual;
         robot_control.manual_commande_message = std::stoi(data->get_string());
-        l._lock.unlock();
+        _lock.unlock();
     }));
 
     /* In autonav mode we need that robot reach a new point. */
     current_socket->on("position_to_reach", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
-        l._lock.lock();
+        _lock.lock();
 
         destination_point.first = data->get_map()["i"]->get_int();
         destination_point.second = data->get_map()["j"]->get_int();
 
         robot_general_state = Robot_state().compute_nav;
-        l._lock.unlock();
+        _lock.unlock();
     }));
 }
 
@@ -1143,11 +1147,12 @@ void Robot_system::init_socketio()
         DESCRIPTION: todo
     */
 
-    connection_listener l(h);
-    // l = li;
-    h.set_open_listener(std::bind(&connection_listener::on_connected, &l));
-    h.set_close_listener(std::bind(&connection_listener::on_close, &l,std::placeholders::_1));
-    h.set_fail_listener(std::bind(&connection_listener::on_fail, &l));
+    connection_listener li(h);
+    l = &li;
+
+    h.set_open_listener (std::bind(&connection_listener::on_connected, l));
+    h.set_close_listener(std::bind(&connection_listener::on_close    , l, std::placeholders::_1));
+    h.set_fail_listener (std::bind(&connection_listener::on_fail     , l));
     h.connect("http://127.0.0.1:5000");
 }
 

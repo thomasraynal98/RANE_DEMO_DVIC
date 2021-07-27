@@ -92,7 +92,7 @@ class Robot_system
         // VARIABLE COMMUNICATION.
         sio::socket::ptr current_socket;
         sio::client h;
-        connection_listener l;
+        connection_listener *l;
 
         // VARIABLE THREAD.
         std::thread thread_1_localisation;

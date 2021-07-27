@@ -22,6 +22,7 @@ ADD_EXECUTABLE(rane_software
     core/rane_software.cpp
     src/fonction.cpp
     src/robot_system.cpp
+    src/connection_listener.cpp
     include/fonction.h
     include/robot_system.h
     include/connection_listener.h)
