@@ -97,6 +97,9 @@ bool Robot_system::update_map(std::string new_localisation, std::string new_map_
     /* Update yaml. */
     update_yaml(parametre.map.localisation, parametre.map.id_map);
 
+    /* Update robot variable. */
+    if(!init_map()) {robot_general_state = Robot_state().warning; error = true;}
+
     return !error;
 }
 
@@ -110,7 +113,7 @@ void Robot_system::check_map()
     sio::message::ptr test = sio::object_message::create();
 
     test->get_map()["localisation"] = sio::string_message::create(parametre.map.localisation);
-    test->get_map()["map_id"] = sio::string_message::create(parametre.map.id_map);
+    test->get_map()["map_id"]       = sio::string_message::create(parametre.map.id_map);
     
     current_socket->emit("check_map", test);
 }
@@ -172,6 +175,90 @@ void Robot_system::bind_events()
     }));
 }
 
+void Robot_system::send_data_to_server()
+{
+    /*
+        DESCRIPTION: this function is call from thread_SERVER_SPEAKER and will send
+            to the API all current state variable of robot. 
+    */
+
+    sio::message::ptr data_robot = sio::object_message::create();
+
+    /* add position and orientation information. */
+    data_robot->get_map()["pose_i"]          = sio::int_message::create(robot_position.pixel.i);
+    data_robot->get_map()["pose_j"]          = sio::int_message::create(robot_position.pixel.j);
+    data_robot->get_map()["pose_vi"]         = sio::int_message::create(robot_position.pixel.vi);
+    data_robot->get_map()["pose_vj"]         = sio::int_message::create(robot_position.pixel.vj);
+
+    /* add microcontroler information. */
+    data_robot->get_map()["microA_state"]    = sio::int_message::create(state_A_controler);
+    data_robot->get_map()["microB_state"]    = sio::int_message::create(state_B_controler);
+
+    /* motor command. */ 
+    data_robot->get_map()["motor_command"]   = sio::int_message::create(robot_control.manual_commande_message);
+
+    /* current mode. */
+    data_robot->get_map()["robot_state"]     = sio::string_message::create(robot_general_state);
+    
+    /* intern data. */
+    data_robot->get_map()["cpu_heat"]        = sio::int_message::create(cpu_heat);
+    data_robot->get_map()["cpu_load"]        = sio::int_message::create(cpu_load);
+    data_robot->get_map()["fan_power"]       = sio::int_message::create(fan_power);
+
+    /* Sensor information. */
+    data_robot->get_map()["ulF0"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF0);
+    data_robot->get_map()["ulF1"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF1);
+    data_robot->get_map()["ulF2"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF2);
+    data_robot->get_map()["ulF3"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF3);
+    data_robot->get_map()["ulB0"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB0);
+    data_robot->get_map()["ulB1"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB1);
+    data_robot->get_map()["ulB2"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB2);
+    data_robot->get_map()["voltage"]         = sio::double_message::create(robot_sensor_data.energy.current);
+    data_robot->get_map()["current"]         = sio::double_message::create(robot_sensor_data.energy.voltage);
+
+    /* send it. */
+    current_socket->emit("data_robot", data_robot);
+}
+
+void Robot_system::send_debug_data()
+{
+    /* 
+        DESCRIPTION: this function will only be usefull in debug mode when we need
+            to debug a lot of specific data.
+    */
+
+    sio::message::ptr data_debug_robot = sio::object_message::create();
+
+    /* path and target keypoint. */
+    data_debug_robot->get_map()["keypoints_path"] = generate_keypoint_vector_message();
+
+    /* which process send command motor. */
+    data_debug_robot->get_map()["origin_command"] = sio::int_message::create(robot_control.origin_commande);
+
+    /* send it. */
+    current_socket->emit("data_debug_robot", data_debug_robot);
+}
+
+sio::message::ptr Robot_system::generate_keypoint_vector_message()
+{
+    /*
+        DESCRIPTION: this function will fill in the message from keypoint path.
+    */
+
+    sio::message::ptr array_to_transmit = sio::array_message::create();
+
+    if(!keypoints_path.empty())
+    {
+        for(auto keypoint : keypoints_path)
+        {
+            array_to_transmit->get_vector().push_back(sio::int_message::create(keypoint.coordinate.first));
+            array_to_transmit->get_vector().push_back(sio::int_message::create(keypoint.coordinate.second));
+        }
+    }
+
+    return array_to_transmit;
+}
+ 
 // THREAD.
 void Robot_system::thread_LOCALISATION(int frequency)
 {
@@ -246,7 +333,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "] << [ROBOT_SPEED:" << robot_position.position.robot_speed << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -347,7 +434,6 @@ void Robot_system::thread_COMMANDE(int frequency)
             autonomous_mode_ultrasonic_integration();
 
             /* Check if we are in security mode since enought time. */
-            auto now = std::chrono::high_resolution_clock::now();
             if(autonomous_mode_safety_stop_checking())
             {
                 /* If we are not lost. We are probably in front of an obstacle
@@ -749,7 +835,12 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         // END TIMING VARIABLE.
 
         // GET INTERNE VARIABLE BEFORE SEND.
-        get_interne_data();
+
+        /* Update interne information data. */
+        // get_interne_data();
+
+        /* Send data to server. */
+        send_data_to_server();
 
         // std::cout << "[THREAD-8]\n";
     }
@@ -761,7 +852,7 @@ Robot_system::Robot_system()
     /* STEP 1. Initialisation basic process. */
     robot_general_state       = Robot_state().initialisation;
     if(!init_basic_data()){robot_general_state = Robot_state().warning;}
-    robot_speed               = -1;
+    robot_position.position.robot_speed = -1;
     cpu_heat                  = -1;
     cpu_load                  = -1;
     fan_power                 = -1;
@@ -1033,29 +1124,36 @@ try
     // Enable all the streams
     // ******************************************************************
     slam->setStreamEnabled(slamcore::Stream::Pose, true);
-    slam->setStreamEnabled(slamcore::Stream::MetaData, true);
+    // slam->setStreamEnabled(slamcore::Stream::MetaData, true);
     // *****************************************************************
     // Register callbacks!
     // *****************************************************************
     slam->registerCallback<slamcore::Stream::ErrorCode>(
     [](const slamcore::ErrorCodeInterface::CPtr& errorObj) {
-      const auto rc = errorObj->getValue();
-      std::cout << "Received: ErrorCode" << std::endl;
-      std::cout << "\t" << rc.message() << " / " << rc.value() << " / "
-                << rc.category().name() << std::endl;
+        const auto rc = errorObj->getValue();
+        std::cout << "Received: ErrorCode" << std::endl;
+        std::cout << "\t" << rc.message() << " / " << rc.value() << " / "
+                    << rc.category().name() << std::endl;
     });
 
     slam->registerCallback<slamcore::Stream::Pose>(
     [&robot_position = robot_position](const slamcore::PoseInterface<slamcore::camera_clock>::CPtr& poseObj) 
     {
-      robot_position.position.x    = poseObj->getTranslation().x();
-      robot_position.position.y    = poseObj->getTranslation().y();
-      robot_position.position.z    = poseObj->getTranslation().z();
-      robot_position.orientation.x = poseObj->getRotation().x();
-      robot_position.orientation.y = poseObj->getRotation().y();
-      robot_position.orientation.z = poseObj->getRotation().z();
-      robot_position.orientation.w = poseObj->getRotation().w();
-      from_quaternion_to_euler(robot_position);
+        auto now = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapse = now - robot_position.position.last_time;
+        robot_position.position.robot_speed = (sqrt(pow((robot_position.position.x - poseObj->getTranslation().x()), 2.0)
+				+ pow((robot_position.position.y - poseObj->getTranslation().y()), 2.0)) / ((double)elapse.count()/1000)) * 3600 / 1000;
+
+        robot_position.position.x    = poseObj->getTranslation().x();
+        robot_position.position.y    = poseObj->getTranslation().y();
+        robot_position.position.z    = poseObj->getTranslation().z();
+        robot_position.position.last_time = std::chrono::high_resolution_clock::now();
+
+        robot_position.orientation.x = poseObj->getRotation().x();
+        robot_position.orientation.y = poseObj->getRotation().y();
+        robot_position.orientation.z = poseObj->getRotation().z();
+        robot_position.orientation.w = poseObj->getRotation().w();
+        from_quaternion_to_euler(robot_position);
     });
 
     // TODO: [BUG] resolve this problem.
@@ -1166,15 +1264,15 @@ void Robot_system::init_thread_system()
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this, 50);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
-    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this, 10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this, 20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
-    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this, 10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
-    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this, 20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this, 20);
-    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this, 10); 
-    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this, 10); 
+    thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
+    thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this,  10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
+    thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
+    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
+    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
+    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
     thread_1_localisation.join();
@@ -1184,7 +1282,7 @@ void Robot_system::init_thread_system()
     thread_5_listener_MICROB.join();
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
-    // thread_8_speaker_SERVER.join();
+    thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 }
 
@@ -1460,6 +1558,10 @@ Pair Robot_system::from_3DW_to_2DM2(double x, double y)
     Pair point_pixel(0,0);
     point_pixel.first  = (int)((x +  6.25)  / 0.05);
     point_pixel.second = (int)((19.35 - y)  / 0.05);
+
+    /* for server visualisation. */
+    robot_position.pixel.vi           = point_pixel.first;
+    robot_position.pixel.vj           = point_pixel.second;
 
     return point_pixel;
 }

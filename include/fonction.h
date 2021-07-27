@@ -18,6 +18,10 @@ struct Pose
     struct Translation
     {
         double x{0}, y{0}, z{0};
+
+        /* compute speed. */
+        double robot_speed{0};
+        std::chrono::high_resolution_clock::time_point last_time;
     } position;
     struct Rotation
     {
@@ -30,6 +34,7 @@ struct Pose
     struct Pixel
     {
         int i{0}, j{0};
+        int vi{0}, vj{0};  // for debug i save the position vector of current orientation.
         double y_pixel{0}; // the "orientation on yaw" in pixel coordinate.
     } pixel;
 };

@@ -38,7 +38,6 @@ class Robot_system
     private:
         // VARIABLE.
         std::string robot_id;
-        double robot_speed;
         std::string robot_general_state;
         double distance_between_keypoint = 0.3;
         Robot_sensor robot_sensor_data;
@@ -74,7 +73,7 @@ class Robot_system
         std::string port_B_name;
         std::string controler_A_pong = "0/A";                    // note: the pong message is the answer from microcontroler after get "1/X" ping.
         std::string controler_B_pong = "0/B";
-        int state_A_controler = 0;  
+        int state_A_controler = 0;                               // (0=Init/1=Connect/2=Disconnect/3=Mute)
         int state_B_controler = 0;
 
         // VARIABLE DEBUG.
@@ -137,6 +136,9 @@ class Robot_system
         bool update_map(std::string new_localisation, std::string new_map_id, std::string update_link_session, std::string update_link_png);
         void check_map();
         void bind_events();
+        void send_data_to_server();
+        void send_debug_data();
+        sio::message::ptr generate_keypoint_vector_message();
 
         // FONCTION MICROCONTROLER.
         std::string get_id();
