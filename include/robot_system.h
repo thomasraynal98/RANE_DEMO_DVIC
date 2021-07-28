@@ -50,6 +50,7 @@ class Robot_system
         bool slam_process_state = false; // represent pure working process.
         int state_slamcore_tracking = 0; // represent state when slam is working.
         cv::Mat map_weighted;
+        cv::Mat map_weighted_obstacle;
         Pose robot_position;
         std::unique_ptr<slamcore::SLAMSystemCallbackInterface> slamcore;
         std::vector<Path_keypoint> keypoints_path;
@@ -174,6 +175,7 @@ class Robot_system
         bool cellIsReach();
         bool destination_reach();
         bool isInVect(std::vector<int> vector, int stuf);
+        bool recompute_new_path();
 
         // FONCTION MODE.
         void manual_mode_process();
@@ -202,6 +204,9 @@ class Robot_system
         void debug_init_sensor();
         void debug_autonav(cv::Mat image);
         float round(float var);
+
+        // FONCTION SYSTEM.
+        void check_stKP_mode();
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

@@ -9,6 +9,7 @@
 #include <tuple>
 
 typedef std::pair<int, int> Pair;
+typedef std::pair<Pair, Pair> Obstacle_lines;
 typedef std::tuple<double, int, int> Tuple;
 
 struct Pose 
@@ -28,6 +29,8 @@ struct Pose
         /* store position of center of robot. */
         double x{0}, y{0};
         double cam_to_center{0.3}; //en m
+        Pair FL_sensor_pose;
+        Pair RL_sensor_pose;
     } transformation;
     struct Rotation
     {
@@ -353,9 +356,26 @@ struct Robot_sensor
         double estimateLeftWall{-1};
         bool isWallDetectionRight{false};
         double estimateRightWall{-1};
+
+        /* security stop timing variable. */
         std::chrono::high_resolution_clock::time_point time_stop;
         std::chrono::duration<double, std::milli> elapsed_time_since_stop;
         int wait_time_after_stop{2500}; //en ms
+    
+        /* pixel position of obstacle. */
+        std::vector<Pair> obstacles;
+        std::vector<Obstacle_lines> lines;
+        Pair last_obstacle;
+        bool obstacle_add{false};
+
+        void save_last_obstacle(int i, int j)
+        {
+            /* DESCRIPTION: save the last obstacle. */
+            last_obstacle.first = i;
+            last_obstacle.second = j;
+            obstacle_add = true;
+        }
+
     } detection_analyse;
 
     std::vector<int> proximity_sensor_detection(int threshold_direct, int threshold_latera, double frequency)
@@ -649,6 +669,37 @@ struct System_param{
         std::string path_to_weighted_map{"../data_robot/Navigation/map.png"};
         std::string path_to_identification{"../data_robot/Identification/robot_information.yaml"};
     }filePath;
+
+    struct SelectTargetKeypoint
+    {
+        double weight_distance_RKP{0};
+        double weight_target_angle{0.7};
+        double weight_distance_KPD{0.5};
+        double weight_isReach{-0.4};
+        double mode_stKP{0};
+
+        void mode(int mode)
+        {
+            /* DESCRIPTION: change value. */
+            // mode normal.
+            mode_stKP = mode;
+            if(mode == 0)
+            {
+                weight_distance_RKP = 0.3;
+                weight_target_angle = 0.7;
+                weight_distance_KPD = 0.6;
+                weight_isReach = -0.4;
+            }
+            // mode obstacle.
+            if(mode == 1)
+            {
+                weight_distance_RKP = 1.0;
+                weight_target_angle = 0.1;
+                weight_distance_KPD = 0.1;
+                weight_isReach = -0.5;
+            }
+        }
+    } param_stKP;
 };
 
 bool test(bool is_cool);

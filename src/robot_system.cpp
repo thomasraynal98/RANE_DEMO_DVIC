@@ -398,6 +398,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(aStarSearch(map_weighted, current_pose, destination_point))
             {
                 /* Succes so get target keypoint. */
+                parametre.param_stKP.mode(0);
                 select_target_keypoint();
 
                 /* Check if we reach it. */
@@ -423,6 +424,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
             
             /* Select current target keypoint and check if we reach them. */
+            check_stKP_mode();
             select_target_keypoint();
             cellIsReach();
 
@@ -437,10 +439,12 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Check if we are in security mode since enought time. */
             if(autonomous_mode_safety_stop_checking())
-            {
+            {   
+                // TODO :
                 /* If we are not lost. We are probably in front of an obstacle
                 so we will recompute a new path. */
-            }
+                recompute_new_path();
+            } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
         }
         if(robot_general_state == Robot_state().home)
         {
@@ -1558,6 +1562,13 @@ void Robot_system::from_3DW_to_2DM()
     // TRANSFORMATION
     robot_position.pixel.ti = (int)((robot_position.transformation.x +  6.25)  / 0.05);
     robot_position.pixel.tj = (int)((19.35 - robot_position.transformation.y)  / 0.05);
+
+    /* compute position center of sensor in pixel coordinate. */
+    double d   = (robot_sensor_data.architecture.distance_centraux/2)/50; 
+    robot_position.transformation.RL_sensor_pose.first  = (int)(robot_position.pixel.i+cos((robot_position.pixel.y_pixel*M_PI/180) + M_PI/2)*d);
+    robot_position.transformation.RL_sensor_pose.second = (int)(robot_position.pixel.j+sin((robot_position.pixel.y_pixel*M_PI/180) + M_PI/2)*d);
+    robot_position.transformation.FL_sensor_pose.first  = (int)(robot_position.pixel.i+cos((robot_position.pixel.y_pixel*M_PI/180) - M_PI/2)*d);
+    robot_position.transformation.FL_sensor_pose.second = (int)(robot_position.pixel.j+sin((robot_position.pixel.y_pixel*M_PI/180) - M_PI/2)*d);
 }
 
 Pair Robot_system::from_3DW_to_2DM2(double x, double y)
@@ -1843,10 +1854,10 @@ void Robot_system::select_target_keypoint()
     /* PART 3. Compute the target keypoint score of all this data. */
     std::vector<double> possible_candidate_target_keypoint_note;
 
-    double weight_distance_RKP = 0.3;
-    double weight_target_angle = 0.7;
-    double weight_distance_KPD = 0.5;
-    double weight_isReach      = -0.4;
+    double weight_distance_RKP = parametre.param_stKP.weight_distance_RKP;
+    double weight_target_angle = parametre.param_stKP.weight_target_angle;
+    double weight_distance_KPD = parametre.param_stKP.weight_distance_KPD;
+    double weight_isReach      = parametre.param_stKP.weight_isReach;
 
     for(int i = 0; i < possible_candidate_target_keypoint.size(); i++)
     {
@@ -1935,6 +1946,129 @@ bool Robot_system::isInVect(std::vector<int> vector, int stuf)
         if(value == stuf) return true;
     }
     return false;
+}
+
+bool Robot_system::recompute_new_path()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMANDE when the 
+            robot it's block by obstacle on this road and the target_angle
+            is under a threshold.
+    */
+
+    /* copie map_weighted in map_weighted_obstacle. */
+    map_weighted_obstacle = map_weighted.clone();
+
+    /* generate position in pixel of all obstacle, and generate the 'line' that
+    represent the obstacle. */
+    std::vector<Pair> obstacle_pixel;
+    Pair my_obstacle(-1,-1);
+    Pair nada_obstacle(-1,-1);
+    Obstacle_lines line;
+    int line_size = 6;
+    robot_sensor_data.detection_analyse.lines.clear();
+
+    if(robot_sensor_data.ultra_obstacle.obsulF0)
+    {
+        my_obstacle.first = (int)(robot_position.transformation.FL_sensor_pose.first+cos(((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF0/50));
+        my_obstacle.second = (int)(robot_position.transformation.FL_sensor_pose.second+sin(((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF0/50));
+        obstacle_pixel.push_back(my_obstacle); 
+
+        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
+        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
+        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
+        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
+        robot_sensor_data.detection_analyse.lines.push_back(line);
+
+    } else{ obstacle_pixel.push_back(nada_obstacle);}
+    if(robot_sensor_data.ultra_obstacle.obsulF1)
+    {
+        my_obstacle.first = (int)(robot_position.transformation.FL_sensor_pose.first+cos(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF1/50));
+        my_obstacle.second = (int)(robot_position.transformation.FL_sensor_pose.second+sin(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF1/50));
+        obstacle_pixel.push_back(my_obstacle); 
+
+        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
+        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
+        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
+        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
+        robot_sensor_data.detection_analyse.lines.push_back(line);
+
+    } else{ obstacle_pixel.push_back(nada_obstacle);}
+    if(robot_sensor_data.ultra_obstacle.obsulF2)
+    {
+        my_obstacle.first = (int)(robot_position.transformation.RL_sensor_pose.first+cos(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF2/50));
+        my_obstacle.second = (int)(robot_position.transformation.RL_sensor_pose.second+sin(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF2/50));
+        obstacle_pixel.push_back(my_obstacle);   
+
+        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
+        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
+        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
+        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
+        robot_sensor_data.detection_analyse.lines.push_back(line);
+
+    } else{ obstacle_pixel.push_back(nada_obstacle);}
+    if(robot_sensor_data.ultra_obstacle.obsulF3)
+    {
+        my_obstacle.first = (int)(robot_position.transformation.RL_sensor_pose.first+cos(((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF3/50));
+        my_obstacle.second = (int)(robot_position.transformation.RL_sensor_pose.second+sin(((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF3/50));
+        obstacle_pixel.push_back(my_obstacle);
+
+        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
+        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
+        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
+        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
+        robot_sensor_data.detection_analyse.lines.push_back(line);
+
+    } else{ obstacle_pixel.push_back(nada_obstacle);}
+
+    robot_sensor_data.detection_analyse.obstacles = obstacle_pixel;
+
+    /* draw obstacle information on the grayscale map map_weighted_obstacle. */
+
+    for(auto line : robot_sensor_data.detection_analyse.lines)
+    {
+        // try_avoid area next to object.
+        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(200), 13, cv::LINE_8);
+        // no go area.
+        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(50), 6, cv::LINE_8);
+    }
+
+    /* Create Pair object from our position. */
+    Pair current_pose(robot_position.pixel.ti , robot_position.pixel.tj);
+
+    /* Block the robot during this process. */
+    robot_control.manual_new_command(0);
+    secure_command_transmission();
+
+    /* run a* on this new map_weighted_obstacle. */
+    if(aStarSearch(map_weighted_obstacle, current_pose, destination_point))
+    {   
+        /* save last obstacle position in memory. */
+        for(auto obstacle : robot_sensor_data.detection_analyse.obstacles)
+        {
+            // TODO : for the moment we don't care about witch one. but after take the far away.
+            if(obstacle.first != -1 && obstacle.second != -1)
+            {robot_sensor_data.detection_analyse.save_last_obstacle(obstacle.first, obstacle.second);}
+        }
+
+        /* to re-force 2500 ms wait. */
+        robot_sensor_data.detection_analyse.isSecurityStop = false;
+
+        /* Succes so get target keypoint. */
+        parametre.param_stKP.mode(1);
+        select_target_keypoint();
+
+        /* Check if we reach it. */
+        cellIsReach();
+
+        /* Change mode. */
+        robot_general_state = Robot_state().autonomous_nav;
+    }
+    else
+    {
+        /* Change mode. */
+        robot_general_state = Robot_state().warning;
+    }
 }
 
 // FONCTION MODE.
@@ -2107,9 +2241,10 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
 
     /* Safety check. */
     double safety_threshold = 130.0; // en mm.
+    double safety_angle_threshold = 60.0;   //autonomous_mode_ultrasonic_integration/en deg.
     if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
     ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
-    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)))
+    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && (target_keypoint->target_angle <= safety_angle_threshold))
     {   
         // TODO : add goForward, werification.
 
@@ -2135,10 +2270,10 @@ bool Robot_system::autonomous_mode_safety_stop_checking()
     if(robot_sensor_data.detection_analyse.isSecurityStop)
     {
         robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
-    }
-    if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
-    {
-        return true;
+        if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -2217,6 +2352,32 @@ void Robot_system::secure_command_transmission()
 
     if(!(robot_control == robot_control_last_send)) {robot_control.isTransmitA = false;}
     if(robot_control.isServo_different(robot_control_last_send)) {robot_control.isTransmitB = false;}
+}
+
+// FONCTION SYSTEM.
+void Robot_system::check_stKP_mode()
+{
+    /*
+        DESCRIPTION: this function it's call before all
+            select target keypoint process and will chose witch
+            mode use. If we are far away than a obstacles
+            we choose the mode 0, if not 1.
+    */
+    std::cout << "[stKPMODE:" << parametre.param_stKP.mode_stKP << "]\n";
+    if(robot_sensor_data.detection_analyse.obstacle_add)
+    {
+        double threshold_mode_stKP = 3.0 * 20; // en pixel.
+        double distance_from_obstacle = sqrt(pow((robot_position.pixel.i - robot_sensor_data.detection_analyse.last_obstacle.first), 2.0)
+                    + pow((robot_position.pixel.j - robot_sensor_data.detection_analyse.last_obstacle.second), 2.0));
+        if(threshold_mode_stKP <= distance_from_obstacle)
+        {
+            parametre.param_stKP.mode(0);
+            // TODO : create structure function.
+            robot_sensor_data.detection_analyse.last_obstacle.first = -1;
+            robot_sensor_data.detection_analyse.last_obstacle.second = -1;
+            robot_sensor_data.detection_analyse.obstacle_add = false;
+        }
+    }
 }
 
 // THREAD ANALYSER DEBUG.
@@ -3282,6 +3443,35 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     double y   = robot_position.position.y + (sin(robot_position.euler.y + M_PI/2) * distance_total_vector);
     Pair point = from_3DW_to_2DM2(x, y);
     cv::line(copy_debug_visual_map, cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Point(point.first, point.second), cv::Scalar(0, 0, 255), 1, cv::LINE_8);
+
+    // TODO : add sensor detection.
+    for(auto obs : robot_sensor_data.detection_analyse.obstacles)
+    {
+        if(obs.first != 1)
+        {
+            draw_pose = cv::Point(obs.first, obs.second);
+            cv::circle( copy_debug_visual_map,
+            draw_pose,
+            1,
+            cv::Scalar( 100, 100, 255 ),
+            cv::FILLED,
+            cv::LINE_8 );
+        }
+    }
+    for(auto line : robot_sensor_data.detection_analyse.lines)
+    {
+        // try_avoid.
+        // cv::line(copy_debug_visual_map, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(180, 112, 18), 13, cv::LINE_8);
+        // no go.
+        cv::line(copy_debug_visual_map, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(100, 12, 75), 6, cv::LINE_8);
+    }
+    //  draw_pose = cv::Point(robot_position.transformation.FL_sensor_pose.first, robot_position.transformation.FL_sensor_pose.second);
+    // cv::circle( copy_debug_visual_map,
+    // draw_pose,
+    // 1,
+    // cv::Scalar( 0, 255, 255 ),
+    // cv::FILLED,
+    // cv::LINE_8 );
 
     // TODO : REMOVE INFORMATION ABOUT ANGLE.
     // cv::putText(copy_debug_visual_map, //target image
