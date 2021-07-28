@@ -187,6 +187,8 @@ void Robot_system::send_data_to_server()
     /* add position and orientation information. */
     data_robot->get_map()["pose_i"]          = sio::int_message::create(robot_position.pixel.i);
     data_robot->get_map()["pose_j"]          = sio::int_message::create(robot_position.pixel.j);
+    data_robot->get_map()["pose_ti"]         = sio::int_message::create(robot_position.pixel.ti);
+    data_robot->get_map()["pose_tj"]         = sio::int_message::create(robot_position.pixel.tj);
     data_robot->get_map()["pose_vi"]         = sio::int_message::create(robot_position.pixel.vi);
     data_robot->get_map()["pose_vj"]         = sio::int_message::create(robot_position.pixel.vj);
 
@@ -333,7 +335,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "] << [ROBOT_SPEED:" << robot_position.position.robot_speed << "]\n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -386,7 +388,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             /* Create Pair object from our position. */
-            Pair current_pose(robot_position.pixel.i , robot_position.pixel.j);
+            Pair current_pose(robot_position.pixel.ti , robot_position.pixel.tj);
 
             /* Block the robot during this process. */
             robot_control.manual_new_command(0);
@@ -1138,22 +1140,29 @@ try
 
     slam->registerCallback<slamcore::Stream::Pose>(
     [&robot_position = robot_position](const slamcore::PoseInterface<slamcore::camera_clock>::CPtr& poseObj) 
-    {
+    {   
+        /* compute speed of robot. */
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapse = now - robot_position.position.last_time;
         robot_position.position.robot_speed = (sqrt(pow((robot_position.position.x - poseObj->getTranslation().x()), 2.0)
 				+ pow((robot_position.position.y - poseObj->getTranslation().y()), 2.0)) / ((double)elapse.count()/1000)) * 3600 / 1000;
 
+        /* update translation. */
         robot_position.position.x    = poseObj->getTranslation().x();
         robot_position.position.y    = poseObj->getTranslation().y();
         robot_position.position.z    = poseObj->getTranslation().z();
         robot_position.position.last_time = std::chrono::high_resolution_clock::now();
 
+        /* update orientation. */
         robot_position.orientation.x = poseObj->getRotation().x();
         robot_position.orientation.y = poseObj->getRotation().y();
         robot_position.orientation.z = poseObj->getRotation().z();
         robot_position.orientation.w = poseObj->getRotation().w();
         from_quaternion_to_euler(robot_position);
+
+        /* add transformation from camera to robot center. */
+        robot_position.transformation.x = robot_position.position.x + sin(M_PI-robot_position.euler.y)*robot_position.transformation.cam_to_center;
+        robot_position.transformation.y = robot_position.position.y + cos(M_PI-robot_position.euler.y)*robot_position.transformation.cam_to_center;
     });
 
     // TODO: [BUG] resolve this problem.
@@ -1545,6 +1554,10 @@ void Robot_system::from_3DW_to_2DM()
     //TODO: REMOVE THE DEBUG UP.
     robot_position.pixel.i = (int)((robot_position.position.x +  6.25)  / 0.05);
     robot_position.pixel.j = (int)((19.35 - robot_position.position.y)  / 0.05);
+
+    // TRANSFORMATION
+    robot_position.pixel.ti = (int)((robot_position.transformation.x +  6.25)  / 0.05);
+    robot_position.pixel.tj = (int)((19.35 - robot_position.transformation.y)  / 0.05);
 }
 
 Pair Robot_system::from_3DW_to_2DM2(double x, double y)
@@ -1726,8 +1739,8 @@ double Robot_system::compute_vector_RKP(const Pair& kp)
             from robot to keypoint. (like North, West, East, South)
     */
     
-    double x_sum = kp.first  - robot_position.pixel.i;
-    double y_sum = kp.second - robot_position.pixel.j;
+    double x_sum = kp.first  - robot_position.pixel.ti;
+    double y_sum = kp.second - robot_position.pixel.tj;
 
     double angle_degree = acos((x_sum)/(sqrt(pow(x_sum, 2.0) + pow(y_sum, 2.0))));
     if(y_sum < 0)
@@ -1759,8 +1772,8 @@ double Robot_system::compute_distance_RPK(const Pair& kp)
     /*
         DESCRIPTION: return the distance between robot en kp.
     */
-    return sqrt(pow((kp.first - robot_position.pixel.i), 2.0)
-            + pow((kp.second - robot_position.pixel.j), 2.0));
+    return sqrt(pow((kp.first - robot_position.pixel.ti), 2.0)
+            + pow((kp.second - robot_position.pixel.tj), 2.0));
 }
 
 double Robot_system::compute_validation_angle(const Pair& kpPrev, const Pair& kpCurrent, const Pair& kpNext)
@@ -3245,6 +3258,15 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     cv::FILLED,
     cv::LINE_8 );
 
+    // TRANSFORMATION.
+    cv::Point draw_pose3 = cv::Point(robot_position.pixel.ti, robot_position.pixel.tj);
+    cv::circle( copy_debug_visual_map,
+    draw_pose3,
+    2,
+    cv::Scalar( 255, 0, 0 ),
+    cv::FILLED,
+    cv::LINE_8 );
+
     // TODO: REMOVE DEBUG
     cv::Point draw_pose2 = cv::Point(96, 76);
     cv::circle( copy_debug_visual_map,
@@ -3326,7 +3348,7 @@ void Robot_system::debug_add_path_keypoint(cv::Mat copy_debug_visual_map)
 
         // 3 : TODO : REMOVE TEXTE
         cv::circle(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second),2, cv::Scalar(255,0,0), cv::FILLED, 1,0);
-        cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
+        cv::line(copy_debug_visual_map, cv::Point(target_keypoint->coordinate.first, target_keypoint->coordinate.second), cv::Point(robot_position.pixel.ti, robot_position.pixel.tj), cv::Scalar(0, 0, 0), 1, cv::LINE_8);
         
         // cv::putText(copy_debug_visual_map, //target image
         // cv::format("%2.2f", target_keypoint->validation_angle), //text

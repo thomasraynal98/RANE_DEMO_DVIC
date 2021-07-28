@@ -23,6 +23,12 @@ struct Pose
         double robot_speed{0};
         std::chrono::high_resolution_clock::time_point last_time;
     } position;
+    struct Transformation
+    {
+        /* store position of center of robot. */
+        double x{0}, y{0};
+        double cam_to_center{0.3}; //en m
+    } transformation;
     struct Rotation
     {
         double x{0}, y{0}, z{0}, w{1};
@@ -34,6 +40,7 @@ struct Pose
     struct Pixel
     {
         int i{0}, j{0};
+        int ti{0}, tj{0};  // pixel position of center of robot.
         int vi{0}, vj{0};  // for debug i save the position vector of current orientation.
         double y_pixel{0}; // the "orientation on yaw" in pixel coordinate.
     } pixel;
