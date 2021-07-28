@@ -1959,8 +1959,12 @@ bool Robot_system::recompute_new_path()
     /* copie map_weighted in map_weighted_obstacle. */
     map_weighted_obstacle = map_weighted.clone();
 
-    /* generate position in pixel of all obstacle, and generate the 'line' that
-    represent the obstacle. */
+    /* 
+    generate position in pixel of all obstacle, and generate the 'line' that
+    represent the obstacle. 
+    'line' = is represent by 2 points where obstacle it's center of line.
+    */
+
     std::vector<Pair> obstacle_pixel;
     Pair my_obstacle(-1,-1);
     Pair nada_obstacle(-1,-1);
@@ -2024,13 +2028,12 @@ bool Robot_system::recompute_new_path()
     robot_sensor_data.detection_analyse.obstacles = obstacle_pixel;
 
     /* draw obstacle information on the grayscale map map_weighted_obstacle. */
-
     for(auto line : robot_sensor_data.detection_analyse.lines)
     {
         // try_avoid area next to object.
-        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(200), 13, cv::LINE_8);
+        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(200), 13, cv::FILLED);
         // no go area.
-        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(50), 6, cv::LINE_8);
+        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(50), 6, cv::FILLED);
     }
 
     /* Create Pair object from our position. */
