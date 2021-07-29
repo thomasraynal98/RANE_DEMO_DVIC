@@ -336,9 +336,11 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
         std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        std::cout << "[SLAM_STATUS:" << robot_position.last_pose.state_slamcore_tracking << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
+        mode_checking();
 
         /* All mode of the robot. */
         if(robot_general_state == Robot_state().initialisation)
@@ -348,9 +350,11 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode is automatocly activate when the robot start
                     and are checking for map.
             */
-            std::cout << "[StoredMapIsGood:" << parametre.map.StoredMapIsGood << "\n";
-            /* Check if our current stored map is the good one. */
-            if(parametre.map.StoredMapIsGood)
+
+            /* Check if our current stored map is the good one, and if the tracking 
+            is available. */
+            if(parametre.map.StoredMapIsGood && \
+            robot_position.last_pose.state_slamcore_tracking == 1)
             {
                 robot_general_state = Robot_state().waiting;
             }
@@ -502,7 +506,16 @@ void Robot_system::thread_COMMANDE(int frequency)
 
            robot_control.manual_new_command(0);
         }
-    
+        if(robot_general_state == Robot_state().lost)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This mode is automatly call when slam process is lost.
+            */
+
+            lost_mode_process();
+        }
+
         /* Transmit new command to microcontroler. */
         secure_command_transmission();
     }
@@ -1167,6 +1180,9 @@ try
         /* add transformation from camera to robot center. */
         robot_position.transformation.x = robot_position.position.x + sin(M_PI-robot_position.euler.y)*robot_position.transformation.cam_to_center;
         robot_position.transformation.y = robot_position.position.y + cos(M_PI-robot_position.euler.y)*robot_position.transformation.cam_to_center;
+    
+        /* add slam status. (not slam_process_state) but state_slamcore_tracking. */
+        robot_position.update_slam_status();
     });
 
     // TODO: [BUG] resolve this problem.
@@ -2281,6 +2297,36 @@ bool Robot_system::autonomous_mode_safety_stop_checking()
     return false;
 }
 
+void Robot_system::mode_checking()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMANDE and will shake
+            the slam status and change robot mode if it's necesary.
+    */
+
+    if(slam_process_state)
+    {
+        /* We are lost. */
+        if(robot_position.last_pose.state_slamcore_tracking == 2)
+        {
+            robot_general_state == Robot_state().lost;
+        }
+    }
+}
+
+void Robot_system::lost_mode_process()
+{
+    /*
+        DESCRIPTION: this function it's call from thread_COMMANDE and will control
+            rover based only on ultrason sensor.
+    */
+   
+    /* Update proximity sensor information. */
+    robot_sensor_data.proximity_sensor_detection(700.0, 800.0, thread_2_hz);
+
+    /**/
+}
+
 // FONCTION MOTOR.
 void Robot_system::compute_motor_autocommande()
 {
@@ -2366,10 +2412,9 @@ void Robot_system::check_stKP_mode()
             mode use. If we are far away than a obstacles
             we choose the mode 0, if not 1.
     */
-    std::cout << "[stKPMODE:" << parametre.param_stKP.mode_stKP << "]\n";
     if(robot_sensor_data.detection_analyse.obstacle_add)
     {
-        double threshold_mode_stKP = 3.0 * 20; // en pixel.
+        double threshold_mode_stKP = 2.0 * 20; // en pixel.
         double distance_from_obstacle = sqrt(pow((robot_position.pixel.i - robot_sensor_data.detection_analyse.last_obstacle.first), 2.0)
                     + pow((robot_position.pixel.j - robot_sensor_data.detection_analyse.last_obstacle.second), 2.0));
         if(threshold_mode_stKP <= distance_from_obstacle)

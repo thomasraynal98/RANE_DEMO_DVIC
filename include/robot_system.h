@@ -48,7 +48,6 @@ class Robot_system
 
         // VARIABLE NAVIGATION.
         bool slam_process_state = false; // represent pure working process.
-        int state_slamcore_tracking = 0; // represent state when slam is working.
         cv::Mat map_weighted;
         cv::Mat map_weighted_obstacle;
         Pose robot_position;
@@ -182,6 +181,8 @@ class Robot_system
         void manual_mode_security_sensor();
         bool autonomous_mode_safety_stop_checking();
         void autonomous_mode_ultrasonic_integration();
+        void mode_checking();
+        void lost_mode_process();
 
         // FONCTION MOTOR.
         void secure_command_transmission();
@@ -237,6 +238,6 @@ class Robot_state{
         inline static std::string reset          = "reset";
         inline static std::string debug          = "debug";
         inline static std::string warning        = "warning";
-
+        inline static std::string lost           = "lost";
 };
 #endif

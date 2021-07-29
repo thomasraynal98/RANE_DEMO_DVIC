@@ -47,6 +47,61 @@ struct Pose
         int vi{0}, vj{0};  // for debug i save the position vector of current orientation.
         double y_pixel{0}; // the "orientation on yaw" in pixel coordinate.
     } pixel;
+    /* struct for save last pose and detect slam state. */
+    struct Last_pose
+    {
+        double x{0}, y{0}, yaw{0};
+        int state_slamcore_tracking{0};
+        std::chrono::high_resolution_clock::time_point last_time;
+        bool isSame{false};
+    } last_pose;
+
+    void update_slam_status()
+    {
+        /*
+            DESCRIPTION: this function will check if slam is lost, init
+            or if it's working.
+            (0) = initialisation
+            (1) = working
+            (2) = lost
+        */
+
+        /* we are in init mode. */
+        if(position.x == 0 && position.y == 0)
+        {
+            last_pose.state_slamcore_tracking = 0;
+        }
+        else
+        {
+            if(last_pose.x == position.x && last_pose.y == position.y)
+            {
+                if(!last_pose.isSame)
+                {
+                    last_pose.isSame = true;
+                    last_pose.last_time = std::chrono::high_resolution_clock::now();
+                }
+                else
+                {
+                    auto now = std::chrono::high_resolution_clock::now();
+                    auto elapsed_time = now - last_pose.last_time;
+
+                    /* if the pose is the same since 100ms, we are lost. */
+                    if((int)elapsed_time.count() > 100)
+                    {
+                        last_pose.state_slamcore_tracking = 2;
+                    }
+                }
+            }
+            else
+            {
+                last_pose.state_slamcore_tracking = 1;   
+                last_pose.isSame = false;
+            }
+        }
+        
+        last_pose.x = position.x;
+        last_pose.y = position.y;
+    }
 };
 
 struct Robot_control
