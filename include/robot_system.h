@@ -57,6 +57,9 @@ class Robot_system
         std::vector<Path_keypoint*> possible_candidate_target_keypoint;
         Path_keypoint* target_keypoint;
         Pair destination_point;
+        int takeoff_phase = 1;
+        bool takeoff_begin = false;
+        std::chrono::high_resolution_clock::time_point takeoff_begin_time;
 
         // VARIABLE FICHIER & SYSTEM.
         System_param parametre;
@@ -184,6 +187,7 @@ class Robot_system
         void autonomous_mode_ultrasonic_integration();
         void mode_checking();
         void lost_mode_process();
+        void takeoff_mode_process();
 
         // FONCTION MOTOR.
         void secure_command_transmission();
@@ -241,5 +245,6 @@ class Robot_state{
         inline static std::string debug          = "debug";
         inline static std::string warning        = "warning";
         inline static std::string lost           = "lost";
+        inline static std::string takeoff        = "takeoff";
 };
 #endif

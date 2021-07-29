@@ -83,7 +83,7 @@ struct Pose
                 else
                 {
                     auto now = std::chrono::high_resolution_clock::now();
-                    auto elapsed_time = now - last_pose.last_time;
+                    std::chrono::duration<double, std::milli> elapsed_time = now - last_pose.last_time;
 
                     /* if the pose is the same since 100ms, we are lost. */
                     if((int)elapsed_time.count() > 100)

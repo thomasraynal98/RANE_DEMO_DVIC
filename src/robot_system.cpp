@@ -352,10 +352,9 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Check if our current stored map is the good one, and if the tracking 
             is available. */
-            if(parametre.map.StoredMapIsGood && \
-            robot_position.last_pose.state_slamcore_tracking == 1)
+            if(parametre.map.StoredMapIsGood)
             {
-                change_mode(Robot_state().waiting);
+                change_mode(Robot_state().takeoff);
             }
             else
             {
@@ -513,6 +512,16 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             lost_mode_process();
+        }
+        if(robot_general_state == Robot_state().takeoff)
+        {
+            /*
+                MODE DESCRIPTION:
+                    This special mode is call when robot it's charging on this
+                    base. It allow robot to go backward.
+            */
+
+            takeoff_mode_process();
         }
 
         /* Transmit new command to microcontroler. */
@@ -2311,7 +2320,9 @@ void Robot_system::mode_checking()
             robot_general_state = robot_general_state_before_lost;
         }
         /* We are lost. */
-        if(robot_position.last_pose.state_slamcore_tracking == 2)
+        if((robot_position.last_pose.state_slamcore_tracking == 2 || \
+        robot_position.last_pose.state_slamcore_tracking == 0) && \
+        (robot_general_state != Robot_state().takeoff) && takeoff_begin)
         {
             change_mode(Robot_state().lost);
         }
@@ -2338,6 +2349,54 @@ void Robot_system::lost_mode_process()
         robot_control.manual_new_command(4); // rotate right.
     }
     robot_control.origin_commande = 6;
+}
+
+void Robot_system::takeoff_mode_process()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMANDE and allow 
+            robot to go backward and turn right for the begining of the 
+            session.
+    */
+
+    if(takeoff_phase == 1)
+    {
+        if(takeoff_begin)
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed_time = now - takeoff_begin_time;
+            if((int)elapsed_time.count() > 2000) // in ms.
+            {
+                takeoff_phase = 2;
+                takeoff_begin = false;
+            }
+        }
+        if(!takeoff_begin)
+        {   
+            robot_control.manual_new_command(2); // backward.
+            takeoff_begin_time = std::chrono::high_resolution_clock::now();
+            takeoff_begin = true;
+        }
+    }
+    if(takeoff_phase == 2)
+    {
+        if(takeoff_begin)
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed_time = now - takeoff_begin_time;
+            if((int)elapsed_time.count() > 2000) // in ms.
+            {
+                robot_control.manual_new_command(0); // stop.
+                change_mode(Robot_state().waiting);
+            }
+        }
+        if(!takeoff_begin)
+        {   
+            robot_control.manual_new_command(4); // rotate right.
+            takeoff_begin_time = std::chrono::high_resolution_clock::now();
+            takeoff_begin = true;
+        }
+    }
 }
 
 // FONCTION MOTOR.
@@ -2448,7 +2507,7 @@ void Robot_system::change_mode(std::__cxx11::string& state)
             the robot_general_state_before_lost variable.
     */
 
-    if(state != Robot_state().lost)
+    if(state != Robot_state().lost && state != Robot_state().takeoff)
     {
         robot_general_state_before_lost = state;
     }
