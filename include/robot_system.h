@@ -39,6 +39,7 @@ class Robot_system
         // VARIABLE.
         std::string robot_id;
         std::string robot_general_state;
+        std::string robot_general_state_before_lost;
         double distance_between_keypoint = 0.3;
         Robot_sensor robot_sensor_data;
 
@@ -208,6 +209,7 @@ class Robot_system
 
         // FONCTION SYSTEM.
         void check_stKP_mode();
+        void change_mode(std::__cxx11::string& state);
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

@@ -137,7 +137,8 @@ struct Robot_control
     (2)  : corridor mode 
     (3)  : left wall mode 
     (4)  : right wall mode
-    (5)  : safety check. */
+    (5)  : safety check.
+    (6)  : lost mode */
     int origin_commande{-1}; // for debug.
 
     bool operator==(Robot_control& ctr2)

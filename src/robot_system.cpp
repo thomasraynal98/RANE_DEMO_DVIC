@@ -98,7 +98,7 @@ bool Robot_system::update_map(std::string new_localisation, std::string new_map_
     update_yaml(parametre.map.localisation, parametre.map.id_map);
 
     /* Update robot variable. */
-    if(!init_map()) {robot_general_state = Robot_state().warning; error = true;}
+    if(!init_map()) {change_mode(Robot_state().warning); error = true;}
 
     return !error;
 }
@@ -157,7 +157,7 @@ void Robot_system::bind_events()
     current_socket->on("command_to_do", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
         _lock.lock();
-        robot_general_state = Robot_state().manual;
+        change_mode(Robot_state().manual);
         robot_control.manual_commande_message = std::stoi(data->get_string());
         _lock.unlock();
     }));
@@ -170,7 +170,7 @@ void Robot_system::bind_events()
         destination_point.first = data->get_map()["i"]->get_int();
         destination_point.second = data->get_map()["j"]->get_int();
 
-        robot_general_state = Robot_state().compute_nav;
+        change_mode(Robot_state().compute_nav);
         _lock.unlock();
     }));
 }
@@ -336,7 +336,6 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
         std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
-        std::cout << "[SLAM_STATUS:" << robot_position.last_pose.state_slamcore_tracking << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -356,7 +355,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(parametre.map.StoredMapIsGood && \
             robot_position.last_pose.state_slamcore_tracking == 1)
             {
-                robot_general_state = Robot_state().waiting;
+                change_mode(Robot_state().waiting);
             }
             else
             {
@@ -409,12 +408,12 @@ void Robot_system::thread_COMMANDE(int frequency)
                 cellIsReach();
 
                 /* Change mode. */
-                robot_general_state = Robot_state().autonomous_nav;
+                change_mode(Robot_state().autonomous_nav);
             }
             else
             {
                 /* We get a problem on path planning process. */
-                robot_general_state = Robot_state().warning;
+                change_mode(Robot_state().warning);
             }
         }
         if(robot_general_state == Robot_state().autonomous_nav)
@@ -821,7 +820,7 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         std::cin >> rien;
         destination_point.first  = 96;
         destination_point.second = 76;
-        robot_general_state = Robot_state().compute_nav;
+        change_mode(Robot_state().compute_nav);
         std::cout << robot_general_state << std::endl;
         // robot_control.manual_commande_message = rien;
         // robot_general_state = Robot_state().manual;
@@ -869,20 +868,20 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
 Robot_system::Robot_system()
 {   
     /* STEP 1. Initialisation basic process. */
-    robot_general_state       = Robot_state().initialisation;
-    if(!init_basic_data()){robot_general_state = Robot_state().warning;}
+    change_mode(Robot_state().initialisation);
+    if(!init_basic_data()){change_mode(Robot_state().warning);}
     robot_position.position.robot_speed = -1;
     cpu_heat                  = -1;
     cpu_load                  = -1;
     fan_power                 = -1;
 
     /* STEP 2. Initialisation SLAM process. */
-    if(!init_slam_sdk()) {robot_general_state = Robot_state().warning; slam_process_state = false;}
+    if(!init_slam_sdk()) {change_mode(Robot_state().warning); slam_process_state = false;}
     else{ slam_process_state = true;}
     from_3DW_to_2DM();
 
     /* STEP 3. Initialisation navigation map from folder. */
-    if(!init_map())      {robot_general_state = Robot_state().warning;}
+    if(!init_map())      {change_mode(Robot_state().warning);}
 
     /* STEP 4. Initialisation debug interface. */
     if(true)
@@ -892,7 +891,7 @@ Robot_system::Robot_system()
     }
 
     /* STEP 5. Initialisation microcontroler communication. */
-    if(init_microcontroler() != 2){}// {robot_general_state = Robot_state().warning;}
+    if(init_microcontroler() != 2){}// {change_mode(Robot_state().warning);}
 
     /* STEP 6. Initialisation connection server. */
     init_socketio();
@@ -1946,7 +1945,7 @@ bool Robot_system::destination_reach()
 
     if(keypoints_path[keypoints_path.size()-1].isReach)
     {
-        robot_general_state = Robot_state().waiting;
+        change_mode(Robot_state().waiting);
         keypoints_path.clear();
         possible_candidate_target_keypoint.clear();
         return true;
@@ -2081,12 +2080,12 @@ bool Robot_system::recompute_new_path()
         cellIsReach();
 
         /* Change mode. */
-        robot_general_state = Robot_state().autonomous_nav;
+        change_mode(Robot_state().autonomous_nav);
     }
     else
     {
         /* Change mode. */
-        robot_general_state = Robot_state().warning;
+        change_mode(Robot_state().warning);
     }
 }
 
@@ -2306,10 +2305,15 @@ void Robot_system::mode_checking()
 
     if(slam_process_state)
     {
+        /* We are not lost, or we just recover. */
+        if(robot_position.last_pose.state_slamcore_tracking == 1)
+        {
+            robot_general_state = robot_general_state_before_lost;
+        }
         /* We are lost. */
         if(robot_position.last_pose.state_slamcore_tracking == 2)
         {
-            robot_general_state == Robot_state().lost;
+            change_mode(Robot_state().lost);
         }
     }
 }
@@ -2324,7 +2328,16 @@ void Robot_system::lost_mode_process()
     /* Update proximity sensor information. */
     robot_sensor_data.proximity_sensor_detection(700.0, 800.0, thread_2_hz);
 
-    /**/
+    /* if obstacle in front turn right. Else go forward. */
+    if((!robot_sensor_data.ultra_obstacle.obsulF1) && (!robot_sensor_data.ultra_obstacle.obsulF2))
+    {
+        robot_control.manual_new_command(1); // go forward.
+    }
+    else
+    {
+        robot_control.manual_new_command(4); // rotate right.
+    }
+    robot_control.origin_commande = 6;
 }
 
 // FONCTION MOTOR.
@@ -2426,6 +2439,20 @@ void Robot_system::check_stKP_mode()
             robot_sensor_data.detection_analyse.obstacle_add = false;
         }
     }
+}
+
+void Robot_system::change_mode(std::__cxx11::string& state)
+{
+    /*
+        DESCRIPTION: this function will change the mode and update
+            the robot_general_state_before_lost variable.
+    */
+
+    if(state != Robot_state().lost)
+    {
+        robot_general_state_before_lost = state;
+    }
+    robot_general_state = state;
 }
 
 // THREAD ANALYSER DEBUG.
@@ -3438,7 +3465,7 @@ void Robot_system::debug_message_server()
             debug process.
         INFO       : this function will not be use at the end.
     */
-    robot_general_state = Robot_state().waiting;
+    change_mode(Robot_state().waiting);
 }
 
 void Robot_system::debug_init_debug_map()
