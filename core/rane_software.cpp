@@ -23,9 +23,17 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <unistd.h>
+#include <iostream>
+#include <cstdlib>
+#include <signal.h>
+#include <csignal>
 
-int main()
-{
+#include <iostream>
+#include <csignal>
+
+int main () {
     Robot_system robot1 = Robot_system();
-}
 
+    return 0;
+}

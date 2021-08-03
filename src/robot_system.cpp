@@ -37,12 +37,18 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <unistd.h>
+#include <iostream>
+#include <cstdlib>
+#include <signal.h>
+
 #include "../include/robot_system.h"
 #include "../include/fonction.h"
 #include "../include/connection_listener.h"
 
 // GLOBAL VARIABLE.
 std::mutex _lock;
+Robot_system* therobot;
 
 // FONCTION COMMUNICATION.
 bool Robot_system::update_yaml(std::string new_localisation, std::string new_map_id)
@@ -276,6 +282,9 @@ void Robot_system::thread_LOCALISATION(int frequency)
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
 
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
     /* START SLAM. */
     while(true)
     {   
@@ -323,6 +332,9 @@ void Robot_system::thread_COMMANDE(int frequency)
     std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
+
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
 
     while(true)
     {   
@@ -566,6 +578,9 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span2;
 
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
     while(true)
     {   
         // TIMING VARIABLE.
@@ -695,6 +710,9 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
     std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> time_span2;
 
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
     while(true)
     {   
         // TIMING VARIABLE.
@@ -807,6 +825,9 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
 
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
     while(true)
     {   
         // TIMING VARIABLE.
@@ -849,6 +870,9 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
     std::chrono::duration<double, std::milli> time_span;
     auto next = std::chrono::high_resolution_clock::now();
 
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
     while(true)
     {   
         // TIMING VARIABLE.
@@ -883,6 +907,7 @@ Robot_system::Robot_system()
     cpu_heat                  = -1;
     cpu_load                  = -1;
     fan_power                 = -1;
+    therobot = this;
 
     /* STEP 2. Initialisation SLAM process. */
     if(!init_slam_sdk()) {change_mode(Robot_state().warning); slam_process_state = false;}
@@ -1191,6 +1216,7 @@ try
     
         /* add slam status. (not slam_process_state) but state_slamcore_tracking. */
         robot_position.update_slam_status();
+        robot_position.detect_relocalisation();
     });
 
     // TODO: [BUG] resolve this problem.
@@ -2512,6 +2538,71 @@ void Robot_system::change_mode(std::__cxx11::string& state)
         robot_general_state_before_lost = state;
     }
     robot_general_state = state;
+}
+
+int Robot_system::test()
+{
+    return 42;
+}
+
+void Robot_system::my_handler(int i) {
+    /*
+        DESCRIPTION: this function is call when the user will use
+            control-c event to hard exit the program. During this
+            method, the program will send stop message to all 
+            microcontroler of the robot to stop all activity.
+    */
+
+    printf("[CLEAN CONTROL-C EVENT EXIT]: signal is %d.\n", i);
+
+    /* setup stop message for all controler. */
+    therobot->robot_control.manual_new_command(0);
+    therobot->robot_control.compute_message_microA();
+    therobot->robot_control.compute_message_microB();
+    therobot->robot_control.isTransmitA = false;
+    therobot->robot_control.isTransmitB = false;
+
+    /* first try to send it. */
+    if((*(therobot->__serial_port_controle_A)) != NULL)
+    {(**(therobot->__serial_port_controle_A)).Write(therobot->robot_control.message_microcontrolerA);}
+    if((*(therobot->__serial_port_sensor_B)) != NULL)
+    {(**(therobot->__serial_port_sensor_B)).Write(therobot->robot_control.message_microcontrolerB);}
+
+    /* be shure than the controler get the information. */
+    std::string reponseA, reponseB;
+    char stop = '\n';   
+    const unsigned int msTimeout = 100; 
+    std::string::size_type sz;
+    while(!therobot->robot_control.isTransmitA && !therobot->robot_control.isTransmitB)
+    {
+        usleep(100000); // wait 100ms.
+
+        /* if not connected consider that is transmit. */
+        if((*(therobot->__serial_port_controle_A)) == NULL){ therobot->robot_control.isTransmitA = true;}
+        if((*(therobot->__serial_port_sensor_B)) == NULL){ therobot->robot_control.isTransmitB = true;}
+
+        if((*(therobot->__serial_port_controle_A)) != NULL){(**(therobot->__serial_port_controle_A)).ReadLine(reponseA, stop, msTimeout);}
+        if((*(therobot->__serial_port_sensor_B)) != NULL){(**(therobot->__serial_port_sensor_B)).ReadLine(reponseB, stop, msTimeout);}
+
+        if(reponseA.size() > 0 && reponseB.size() > 0)
+        {
+            if(therobot->match_ping_pong(therobot->robot_control.message_microcontrolerA, reponseA))
+            {
+                therobot->robot_control.isTransmitA = true;
+            }
+            else { if((*(therobot->__serial_port_controle_A)) != NULL){(**(therobot->__serial_port_controle_A)).Write(therobot->robot_control.message_microcontrolerA);}}
+
+            if(therobot->match_ping_pong(therobot->robot_control.message_microcontrolerB, reponseB))
+            {
+                therobot->robot_control.isTransmitB = true;
+            }
+            else { if((*(therobot->__serial_port_sensor_B)) != NULL){(**(therobot->__serial_port_sensor_B)).Write(therobot->robot_control.message_microcontrolerB);}}
+        }
+    }
+
+    std::cout << "[CONTROL-C EVENT - ALL ACTIONNEUR SHUT DOWN.] \n Good night robot...";
+
+    exit(i);
 }
 
 // THREAD ANALYSER DEBUG.

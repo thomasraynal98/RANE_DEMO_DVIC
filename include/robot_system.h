@@ -131,7 +131,6 @@ class Robot_system
         double time_since_we_consider_thread_disconnect = 500;   // note: time in ms.
 
     public:
-
         // CONSTRUCTEUR.
         Robot_system();
 
@@ -214,6 +213,8 @@ class Robot_system
         // FONCTION SYSTEM.
         void check_stKP_mode();
         void change_mode(std::__cxx11::string& state);
+        static void my_handler(int var);
+        int test();
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

@@ -51,9 +51,11 @@ struct Pose
     struct Last_pose
     {
         double x{0}, y{0}, yaw{0};
+        double threshold_relocalisation{0.5};
         int state_slamcore_tracking{0};
         std::chrono::high_resolution_clock::time_point last_time;
         bool isSame{false};
+        bool isRelocalisation{false};
     } last_pose;
 
     void update_slam_status()
@@ -101,6 +103,16 @@ struct Pose
         
         last_pose.x = position.x;
         last_pose.y = position.y;
+    }
+
+    void detect_relocalisation()
+    {
+        /*
+            DESCRIPTION: IDK if it's usefull but i will detect that.
+        */
+        if(last_pose.threshold_relocalisation <= sqrt(pow((last_pose.x - position.x), 2.0) \
+		+ pow((last_pose.y - position.y), 2.0))) {last_pose.isRelocalisation = true;}
+        else{ last_pose.isRelocalisation = false;}  
     }
 };
 
