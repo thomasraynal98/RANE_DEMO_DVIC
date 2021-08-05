@@ -1,12 +1,19 @@
 #ifndef FONCTION_H
 #define FONCTION_H
 
+#include <slamcore/slamcore.hpp>
+
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cmath>
 #include <chrono>
 #include <tuple>
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
 
 typedef std::pair<int, int> Pair;
 typedef std::pair<Pair, Pair> Obstacle_lines;
@@ -150,7 +157,8 @@ struct Robot_control
     (3)  : left wall mode 
     (4)  : right wall mode
     (5)  : safety check.
-    (6)  : lost mode */
+    (6)  : lost mode 
+    (7)  : approach mode*/
     int origin_commande{-1}; // for debug.
 
     bool operator==(Robot_control& ctr2)
@@ -768,6 +776,70 @@ struct System_param{
             }
         }
     } param_stKP;
+};
+
+struct Stream_cam{
+    /*
+        DESCRIPTION: this function will store all information
+            from the current video stream.
+    */
+
+    struct QR_var{
+        cv::Mat bbox, rectifiedImage;
+        cv::QRCodeDetector qrDecoder = cv::QRCodeDetector();
+        bool qrIsDetected{false};
+        std::chrono::high_resolution_clock::time_point last_detect_time;
+        std::chrono::duration<double, std::milli> elapsed_time_since_detect;
+        int time_threshold{333};
+    }qr_var;
+
+    int width{-1}, height{-1};
+
+    void display_debug(cv::Mat &im, cv::Mat &bbox)
+    {
+        int n = bbox.rows;
+        for(int i = 0 ; i < n ; i++)
+        {
+            if(bbox.at<float>(i,0) > 0 &&\
+            bbox.at<float>(i,1) > 0 &&\ 
+            bbox.at<float>((i+1) % n,0) > 0 && \
+            bbox.at<float>((i+1) % n,1) > 0)
+            cv::line(im, cv::Point2i(bbox.at<float>(i,0),bbox.at<float>(i,1)), cv::Point2i(bbox.at<float>((i+1) % n,0), bbox.at<float>((i+1) % n,1)), cv::Scalar(255,0,0), 3);
+        }
+        cv::imshow("Result", im);
+    }
+
+    void detect_QR_code(cv::Mat inputImage)
+    {
+        /*
+            DESCRIPTION: this function is call in slam call back and 
+                will check if we detect a QR CODE.
+        */
+
+        std::string data = qr_var.qrDecoder.detectAndDecode(inputImage, qr_var.bbox, qr_var.rectifiedImage);
+        
+        //note: first dim is QR, and second dim is the 4 points. 
+        std::cout << "size:" << qr_var.bbox << " " << qr_var.bbox.size[0] << "\n";
+        
+        /* if we detect QR code update value. */
+        if(qr_var.bbox.size[0] > 0)
+        {
+            std::cout << "element i from pts 1 : " << qr_var.bbox.at<float>(0,0) << "\n";
+            qr_var.qrIsDetected = true;
+            qr_var.last_detect_time = std::chrono::high_resolution_clock::now();
+        }
+
+        /* if we didn't detect qr code for many time we lost qr. */
+        auto now = std::chrono::high_resolution_clock::now();
+        qr_var.elapsed_time_since_detect = now - qr_var.last_detect_time;
+        if((int)qr_var.elapsed_time_since_detect.count() > qr_var.time_threshold)
+        {
+            qr_var.qrIsDetected = false;
+        }
+
+        /* debug display of camera. */
+        display_debug(inputImage, qr_var.bbox);
+    }
 };
 
 bool test(bool is_cool);

@@ -347,7 +347,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -436,6 +436,8 @@ void Robot_system::thread_COMMANDE(int frequency)
                     target_keypoint, check slam command, check ultrason command, and 
                     choose witch command procision will be send to robot.
             */
+
+            // TODO : when get data from API change autonomous_nav_option to 0. (not ici)
             
             /* Select current target keypoint and check if we reach them. */
             check_stKP_mode();
@@ -444,40 +446,77 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Check if destination keypoints is reach. 
             Else, compute motor commande. */
-            if(destination_reach()) { robot_control.manual_new_command(0); robot_control.origin_commande = 1;}
-            else{ compute_motor_autocommande();}
+            if(destination_reach()) 
+            { 
+                robot_control.manual_new_command(0); 
+                robot_control.origin_commande = 1;
 
-            /* Introduce the ultrasonsensor. If condition are together,
-            maybe this part will compute a new motor autocommande. */
-            autonomous_mode_ultrasonic_integration();
+                /* note: pas obliger de le faire pour le cas ou autonomous_nav_option
+                vaut 0 car dans destination_reach() il passe automatiquement en mode
+                waiting. */
+                if(autonomous_nav_option == 1)
+                {   
+                    /* We reach the point d'approche. */
+                    change_mode(Robot_state().approach);
+                }
+            }
+            else
+            { 
+                compute_motor_autocommande();
 
-            /* Check if we are in security mode since enought time. */
-            if(autonomous_mode_safety_stop_checking())
-            {   
-                // TODO :
-                /* If we are not lost. We are probably in front of an obstacle
-                so we will recompute a new path. */
-                recompute_new_path();
-            } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
+                /* Introduce the ultrasonsensor. If condition are together,
+                maybe this part will compute a new motor autocommande. */
+                autonomous_mode_ultrasonic_integration();
+
+                /* Check if we are in security mode since enought time. */
+                if(autonomous_mode_safety_stop_checking())
+                {   
+                    // TODO :
+                    /* If we are not lost. We are probably in front of an obstacle
+                    so we will recompute a new path. */
+                    recompute_new_path();
+                } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
+            }       
         }
         if(robot_general_state == Robot_state().home)
         {
             /*
                 MODE DESCRIPTION:
-                    This mode is a version of autonomous_nav but there are
-                    only one destination, the home area. This destination
-                    is just in front of the charger pad. And after that
-                    the robot can if you want pass in approach mode for
-                    docking.
+                    When this mode is call, we change the option of autonomous_nav
+                    mode. So when autonomous_nav reaches the destination point
+                    it switches directly to approach mode.
             */
+
+            // TODO : when get data from API change autonomous_nav_option to 1.
+
+            home_mode_process();
         }
+        change_mode(Robot_state().approach);
         if(robot_general_state == Robot_state().approach)
         {
             /*
                 MODE DESCRIPTION:
                     This mode allow robot to dock on the docking pad for
-                    charging process.
+                    charging process with the help of camera streaming
+                    and QR code detection process. During this process, 
+                    the slam navigation process from slamcore is not use.
             */
+
+            /* check if we are in good orientation. */
+            approach_mode_check_orientation();
+                
+            if(approach_orientation_isGood)
+            {
+                /* be shure than we detect QR code on the wall. */
+                approach_mode_detect_QR_code();
+
+                /* check if it's the good one. */
+                /* process the command. */
+                /* if we lost QR code since a lot of time, come back to approach point. */
+
+                // TODO : what we do if human or something block process, or how 
+                // integrate ultrason sensor in this process.
+            }
         }
         if(robot_general_state == Robot_state().manual)
         {
@@ -1176,6 +1215,7 @@ try
     // Enable all the streams
     // ******************************************************************
     slam->setStreamEnabled(slamcore::Stream::Pose, true);
+    slam->setStreamEnabled(slamcore::Stream::Video, true);
     // slam->setStreamEnabled(slamcore::Stream::MetaData, true);
     // *****************************************************************
     // Register callbacks!
@@ -1186,6 +1226,26 @@ try
         std::cout << "Received: ErrorCode" << std::endl;
         std::cout << "\t" << rc.message() << " / " << rc.value() << " / "
                     << rc.category().name() << std::endl;
+    });
+
+    slam->registerCallback<slamcore::Stream::Video>(
+    [&camera_data = camera_data](const slamcore::MultiFrameInterface::CPtr& multiFrameObj) {
+        int i = 0;
+        for (auto& img : *multiFrameObj)
+        {
+            i += 1;
+            if(i == 2)
+            {
+                camera_data.width   = img.getWidth();
+                camera_data.height  = img.getHeight();
+
+                auto machin = img.getData();
+                unsigned char* machin2 = (unsigned char*)machin;
+                cv::Mat mat2(camera_data.height, camera_data.width, CV_8U, machin2);
+
+                camera_data.detect_QR_code(mat2);
+            }
+        }
     });
 
     slam->registerCallback<slamcore::Stream::Pose>(
@@ -2010,11 +2070,10 @@ bool Robot_system::recompute_new_path()
     map_weighted_obstacle = map_weighted.clone();
 
     /* 
-    generate position in pixel of all obstacle, and generate the 'line' that
-    represent the obstacle. 
-    'line' = is represent by 2 points where obstacle it's center of line.
+        generate position in pixel of all obstacle, and generate the 'line' that
+        represent the obstacle. 
+        'line' = is represent by 2 points where obstacle it's center of line.
     */
-
     std::vector<Pair> obstacle_pixel;
     Pair my_obstacle(-1,-1);
     Pair nada_obstacle(-1,-1);
@@ -2348,7 +2407,8 @@ void Robot_system::mode_checking()
         /* We are lost. */
         if((robot_position.last_pose.state_slamcore_tracking == 2 || \
         robot_position.last_pose.state_slamcore_tracking == 0) && \
-        (robot_general_state != Robot_state().takeoff) && takeoff_begin)
+        (robot_general_state != Robot_state().takeoff && \ 
+        robot_general_state != Robot_state().approach) && takeoff_begin)
         {
             change_mode(Robot_state().lost);
         }
@@ -2422,6 +2482,88 @@ void Robot_system::takeoff_mode_process()
             takeoff_begin_time = std::chrono::high_resolution_clock::now();
             takeoff_begin = true;
         }
+    }
+}
+
+void Robot_system::home_mode_process()
+{
+    /*
+        DESCRIPTION: this function call in thread_COMMAND will
+    */
+
+    autonomous_nav_option = 1;
+    change_mode(Robot_state().compute_nav);
+}
+
+void Robot_system::approach_mode_check_orientation()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMAND when
+            we are in approach mode, and will compute command if we 
+            are not in good orientation.
+    */
+
+    /* we need to be not lost (visual slam is still working.) */
+    if(robot_position.last_pose.state_slamcore_tracking == 1)
+    {
+        double angle_ORIENTATION = robot_position.pixel.y_pixel;
+        double angle_to_REACH    = approach_orientation_angle;
+
+        /* first compute 'distance' between this 2 angles. */
+        double distance_deg      = -1;
+        if(angle_to_REACH >= angle_ORIENTATION)
+        {
+            distance_deg         = angle_to_REACH - angle_ORIENTATION;
+            if(distance_deg > 180){ distance_deg = 360 - distance_deg;}
+        }
+        else
+        {
+            distance_deg         = angle_ORIENTATION - angle_to_REACH;
+            if(distance_deg > 180){ distance_deg = 360 - distance_deg;}    
+        }
+
+        /* second, check if it's good enought. */
+        if(distance_deg > approach_orientation_threshold)
+        {
+            /* we need to turn. */
+            if(angle_ORIENTATION <= angle_to_REACH)
+            {
+                if(angle_to_REACH - angle_ORIENTATION <= 180)
+                {
+                    // Right rotation.
+                    robot_control.manual_new_command(4);
+                }
+                else
+                {
+                    // Left rotation.
+                    robot_control.manual_new_command(3);
+                }
+            }
+            else
+            {
+                if(angle_ORIENTATION - angle_to_REACH <= 180)
+                {
+                    // Left rotation.
+                    robot_control.manual_new_command(3);
+                }
+                else
+                {
+                    // Right rotation.
+                    robot_control.manual_new_command(4);
+                }
+            }
+
+            //note: cela veut dire que si le robot à deja valider son angle
+            // et que le visual slam fonctionne encore, il peut se realigner ?
+            // approach_orientation_isGood = false;
+        }
+        else
+        {
+            robot_control.manual_new_command(0);
+            approach_orientation_isGood = true;
+        }
+
+        robot_control.origin_commande = 7;
     }
 }
 

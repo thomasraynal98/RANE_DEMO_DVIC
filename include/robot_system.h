@@ -42,6 +42,14 @@ class Robot_system
         std::string robot_general_state_before_lost;
         double distance_between_keypoint = 0.3;
         Robot_sensor robot_sensor_data;
+        Stream_cam camera_data;
+
+        /*
+            this variable will make difference between:
+            (0) = normal autonomous_nav
+            (1) = go home autonomous_nav
+        */
+        int autonomous_nav_option = 0;
 
         // VARIABLE COMMANDE.
         Robot_control robot_control;
@@ -60,6 +68,9 @@ class Robot_system
         int takeoff_phase = 1;
         bool takeoff_begin = false;
         std::chrono::high_resolution_clock::time_point takeoff_begin_time;
+        bool approach_orientation_isGood = false;
+        double approach_orientation_angle = -1;
+        double approach_orientation_threshold = 10;
 
         // VARIABLE FICHIER & SYSTEM.
         System_param parametre;
@@ -187,6 +198,9 @@ class Robot_system
         void mode_checking();
         void lost_mode_process();
         void takeoff_mode_process();
+        void home_mode_process();
+        void approach_mode_check_orientation();
+        bool approach_mode_detect_QR_code();
 
         // FONCTION MOTOR.
         void secure_command_transmission();
