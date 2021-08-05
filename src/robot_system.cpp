@@ -381,7 +381,7 @@ void Robot_system::thread_COMMANDE(int frequency)
                     but the initialisation process of robot is completed.
             */
 
-            robot_control.manual_new_command(0);
+            robot_control.manual_new_command(0, 3, -1);
         }
         if(robot_general_state == Robot_state().approach)
         {
@@ -405,7 +405,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             Pair current_pose(robot_position.pixel.ti , robot_position.pixel.tj);
 
             /* Block the robot during this process. */
-            robot_control.manual_new_command(0);
+            robot_control.manual_new_command(0, 3, 1);
             secure_command_transmission();
 
             /* Compute the path. */
@@ -448,8 +448,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             Else, compute motor commande. */
             if(destination_reach()) 
             { 
-                robot_control.manual_new_command(0); 
-                robot_control.origin_commande = 1;
+                robot_control.manual_new_command(0, 3, 1); 
 
                 /* note: pas obliger de le faire pour le cas ou autonomous_nav_option
                 vaut 0 car dans destination_reach() il passe automatiquement en mode
@@ -508,7 +507,10 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(approach_orientation_isGood)
             {
                 /* be shure than we detect QR code on the wall. */
-                approach_mode_detect_QR_code();
+                if(camera_data.qr_var.qrIsDetected)
+                {
+                    approach_mode_motor_commande();
+                }
 
                 /* check if it's the good one. */
                 /* process the command. */
@@ -544,7 +546,7 @@ void Robot_system::thread_COMMANDE(int frequency)
                     detected during robot process.
             */
 
-           robot_control.manual_new_command(0);
+           robot_control.manual_new_command(0, 3, 9);
         }
         if(robot_general_state == Robot_state().reset)
         {
@@ -553,7 +555,7 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode allow user to reset the robot.
             */
 
-           robot_control.manual_new_command(0);
+           robot_control.manual_new_command(0, 3, 10);
         }
         if(robot_general_state == Robot_state().lost)
         {
@@ -1238,6 +1240,7 @@ try
             {
                 camera_data.width   = img.getWidth();
                 camera_data.height  = img.getHeight();
+                camera_data.qr_var.horizontal_center = camera_data.width/2;
 
                 auto machin = img.getData();
                 unsigned char* machin2 = (unsigned char*)machin;
@@ -2149,7 +2152,7 @@ bool Robot_system::recompute_new_path()
     Pair current_pose(robot_position.pixel.ti , robot_position.pixel.tj);
 
     /* Block the robot during this process. */
-    robot_control.manual_new_command(0);
+    robot_control.manual_new_command(0, 3, 11);
     secure_command_transmission();
 
     /* run a* on this new map_weighted_obstacle. */
@@ -2192,15 +2195,15 @@ void Robot_system::manual_mode_process()
             user request to motor command.
     */
 
-    if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0);}
-    if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1);}
-    if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2);}
-    if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3);}
-    if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4);}
-    if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5);}
-    if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6);}
-    if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7);}
-    if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8);}
+    if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0, 3, 0);}
+    if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1, 3, 0);}
+    if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2, 3, 0);}
+    if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3, 3, 0);}
+    if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4, 3, 0);}
+    if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5, 3, 0);}
+    if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6, 3, 0);}
+    if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7, 3, 0);}
+    if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8, 3, 0);}
 }
 
 void Robot_system::manual_mode_security_sensor()
@@ -2217,7 +2220,7 @@ void Robot_system::manual_mode_security_sensor()
     {
         /* want to go forward but is blocked. */
         std::cout << "[AUTO MANUAL STOP]" << std::endl;
-        robot_control.manual_new_command(0);
+        robot_control.manual_new_command(0, 3, 5);
         robot_control.compute_message_microA();
         robot_control.compute_message_microB();
         robot_control.isTransmitA = false;
@@ -2228,7 +2231,7 @@ void Robot_system::manual_mode_security_sensor()
     {
         /* want to go backward but is blocked. */
         std::cout << "[AUTO MANUAL STOP]" << std::endl;
-        robot_control.manual_new_command(0);
+        robot_control.manual_new_command(0, 3, 5);
         robot_control.compute_message_microA();
         robot_control.compute_message_microB();
         robot_control.isTransmitA = false;
@@ -2267,14 +2270,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF0+diff_threshold< robot_sensor_data.ultrasonic.ulF3)
             {
                 // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(6, 3, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(5, 3, 2);
             }
         }
 
@@ -2290,14 +2291,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF0+diff_threshold < robot_sensor_data.ultrasonic.ulB0)
             {
                 // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(6, 3, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(5, 3, 2);
             }
         }
         
@@ -2307,14 +2306,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulB2)
             {
                 // Are currently going to the wall. Smooth turn left.
-                robot_control.manual_new_command(5);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(5, 3, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulB2+diff_threshold < robot_sensor_data.ultrasonic.ulF3)
             {
                 // Are currently moving away the wall. Smooth turn right.
-                robot_control.manual_new_command(6);
-                robot_control.origin_commande = 2;
+                robot_control.manual_new_command(6, 3, 2);
             }
         }
 
@@ -2340,14 +2337,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
         {
             /* We have a wall on a left. */
-            robot_control.manual_new_command(6);
-            robot_control.origin_commande = 3;
+            robot_control.manual_new_command(6, 3, 3);
         }
         if(robot_sensor_data.detection_analyse.isWallDetectionRight)
         {
             /* We have a wall on a right. */
-            robot_control.manual_new_command(5);
-            robot_control.origin_commande = 4;
+            robot_control.manual_new_command(5, 3, 4);
         }
     }
 
@@ -2360,8 +2355,7 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
     {   
         // TODO : add goForward, werification.
 
-        robot_control.manual_new_command(0); //stop.
-        robot_control.origin_commande = 5;
+        robot_control.manual_new_command(0, 3, 5); //stop.
         if(robot_sensor_data.detection_analyse.isSecurityStop == false)
         {
             robot_sensor_data.detection_analyse.time_stop = std::chrono::high_resolution_clock::now();
@@ -2428,13 +2422,12 @@ void Robot_system::lost_mode_process()
     /* if obstacle in front turn right. Else go forward. */
     if((!robot_sensor_data.ultra_obstacle.obsulF1) && (!robot_sensor_data.ultra_obstacle.obsulF2))
     {
-        robot_control.manual_new_command(1); // go forward.
+        robot_control.manual_new_command(1, 2, 6); // go forward.
     }
     else
     {
-        robot_control.manual_new_command(4); // rotate right.
+        robot_control.manual_new_command(4, 2, 6); // rotate right.
     }
-    robot_control.origin_commande = 6;
 }
 
 void Robot_system::takeoff_mode_process()
@@ -2459,7 +2452,7 @@ void Robot_system::takeoff_mode_process()
         }
         if(!takeoff_begin)
         {   
-            robot_control.manual_new_command(2); // backward.
+            robot_control.manual_new_command(2, 2, 12); // backward.
             takeoff_begin_time = std::chrono::high_resolution_clock::now();
             takeoff_begin = true;
         }
@@ -2472,13 +2465,13 @@ void Robot_system::takeoff_mode_process()
             std::chrono::duration<double, std::milli> elapsed_time = now - takeoff_begin_time;
             if((int)elapsed_time.count() > 2000) // in ms.
             {
-                robot_control.manual_new_command(0); // stop.
+                robot_control.manual_new_command(0, 3, 12); // stop.
                 change_mode(Robot_state().waiting);
             }
         }
         if(!takeoff_begin)
         {   
-            robot_control.manual_new_command(4); // rotate right.
+            robot_control.manual_new_command(4, 2, 12); // rotate right.
             takeoff_begin_time = std::chrono::high_resolution_clock::now();
             takeoff_begin = true;
         }
@@ -2531,12 +2524,12 @@ void Robot_system::approach_mode_check_orientation()
                 if(angle_to_REACH - angle_ORIENTATION <= 180)
                 {
                     // Right rotation.
-                    robot_control.manual_new_command(4);
+                    robot_control.manual_new_command(4, 2, 7);
                 }
                 else
                 {
                     // Left rotation.
-                    robot_control.manual_new_command(3);
+                    robot_control.manual_new_command(3, 2, 7);
                 }
             }
             else
@@ -2544,12 +2537,12 @@ void Robot_system::approach_mode_check_orientation()
                 if(angle_ORIENTATION - angle_to_REACH <= 180)
                 {
                     // Left rotation.
-                    robot_control.manual_new_command(3);
+                    robot_control.manual_new_command(3, 2, 7);
                 }
                 else
                 {
                     // Right rotation.
-                    robot_control.manual_new_command(4);
+                    robot_control.manual_new_command(4, 2, 7);
                 }
             }
 
@@ -2559,11 +2552,46 @@ void Robot_system::approach_mode_check_orientation()
         }
         else
         {
-            robot_control.manual_new_command(0);
+            robot_control.manual_new_command(0, 3, 7);
             approach_orientation_isGood = true;
         }
 
-        robot_control.origin_commande = 7;
+    }
+}
+
+void Robot_system::approach_mode_motor_commande()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMAND
+            will compute the motor command of the robot when we 
+            are in approach mode in phase 2 (QRCODE phase). 
+    */
+
+    if(camera_data.qr_var.horizontal_position != -1)
+    {
+        /* Check if we smooth left MEDIUM speed. */
+        if(camera_data.qr_var.horizontal_position < \
+        camera_data.qr_var.horizontal_center - camera_data.qr_var.horizontal_threshold)
+        {
+            robot_control.manual_new_command(5, 2, 8);
+        }
+
+        /* Check if we smooth right MEDIUM speed. */
+        if(camera_data.qr_var.horizontal_position > \
+        camera_data.qr_var.horizontal_center + camera_data.qr_var.horizontal_threshold)
+        {
+            robot_control.manual_new_command(6, 2, 8);
+        }
+
+        /* Check if forward MEDIUM speed. */
+        if(camera_data.qr_var.horizontal_position <= \
+        camera_data.qr_var.horizontal_center + camera_data.qr_var.horizontal_threshold && \
+        camera_data.qr_var.horizontal_position >= \
+        camera_data.qr_var.horizontal_center - camera_data.qr_var.horizontal_threshold)
+        {
+            robot_control.manual_new_command(1, 2, 8);
+        }
+
     }
 }
 
@@ -2595,15 +2623,15 @@ void Robot_system::compute_motor_autocommande()
             if(angle_RKP - angle_ORIENTATION <= 180)
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(4);}
-                else { robot_control.manual_new_command(6);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 3, 1);}
+                else { robot_control.manual_new_command(6, 3, 1);}
 
             }
             else
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(3);}
-                else { robot_control.manual_new_command(5);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 3, 1);}
+                else { robot_control.manual_new_command(5, 3, 1);}
             }
         }
         else
@@ -2611,24 +2639,22 @@ void Robot_system::compute_motor_autocommande()
             if(angle_ORIENTATION - angle_RKP <= 180)
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(3);}
-                else { robot_control.manual_new_command(5);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 3, 1);}
+                else { robot_control.manual_new_command(5, 3, 1);}
             }
             else
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(4);}
-                else { robot_control.manual_new_command(6);};
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 3, 1);}
+                else { robot_control.manual_new_command(6, 3, 1);};
             }
         }
     }
     else
     {
         // Forward.
-        robot_control.manual_new_command(1);
+        robot_control.manual_new_command(1, 3, 1);
     }
-
-    robot_control.origin_commande = 1;
 }
 
 void Robot_system::secure_command_transmission()
@@ -2698,7 +2724,7 @@ void Robot_system::my_handler(int i) {
     printf("[CLEAN CONTROL-C EVENT EXIT]: signal is %d.\n", i);
 
     /* setup stop message for all controler. */
-    therobot->robot_control.manual_new_command(0);
+    therobot->robot_control.manual_new_command(0, 3, -1);
     therobot->robot_control.compute_message_microA();
     therobot->robot_control.compute_message_microB();
     therobot->robot_control.isTransmitA = false;

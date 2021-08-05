@@ -200,7 +200,7 @@ class Robot_system
         void takeoff_mode_process();
         void home_mode_process();
         void approach_mode_check_orientation();
-        bool approach_mode_detect_QR_code();
+        void approach_mode_motor_commande();
 
         // FONCTION MOTOR.
         void secure_command_transmission();

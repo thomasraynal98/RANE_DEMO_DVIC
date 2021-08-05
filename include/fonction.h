@@ -152,13 +152,18 @@ struct Robot_control
     /* Store the processus than put new command.
     (-1) : no data
     (0)  : manual
-    (1)  : visual slam
+    (1)  : visual slam / compute nav mode
     (2)  : corridor mode 
     (3)  : left wall mode 
     (4)  : right wall mode
     (5)  : safety check.
     (6)  : lost mode 
-    (7)  : approach mode*/
+    (7)  : approach mode
+    (8)  : approach mode phase QR 
+    (9)  : warning mode
+    (10) : reset mode
+    (11) : recompute A* mode when obstacle
+    (12) : takeoff mode */
     int origin_commande{-1}; // for debug.
 
     bool operator==(Robot_control& ctr2)
@@ -233,9 +238,19 @@ struct Robot_control
         return servo.SL != new_command_send.servo.SL || \
                servo.SR != new_command_send.servo.SR;
     }
-    void manual_new_command(int command)
+    void manual_new_command(int command, int speed_lvl, int origin)
     {
+        /*
+            INFO:
+            *speed_lvl = from 3 (max) to 1(min)
+        */
+
+        origin_commande         = origin;
         manual_commande_message = command;
+        int soustracteur        = -1;
+        if(speed_lvl == 3) { soustracteur = -0;}
+        if(speed_lvl == 2) { soustracteur = -30;}
+        if(speed_lvl == 1) { soustracteur = -150;}
 
         /* Change command. */
         if(command == 0)
@@ -264,17 +279,17 @@ struct Robot_control
         if(command == 1)
         {
             // FORWARD.
-            motor.m1L = 255;
+            motor.m1L = 255 + soustracteur;
             direction.m1L_s = 0;
-            motor.m1R = 255;
+            motor.m1R = 255 + soustracteur;
             direction.m1R_s = 0;
-            motor.m2L = 255;
+            motor.m2L = 255 + soustracteur;
             direction.m2L_s = 0;
-            motor.m2R = 255;
+            motor.m2R = 255 + soustracteur;
             direction.m2R_s = 0;
-            motor.m3L = 255;
+            motor.m3L = 255 + soustracteur;
             direction.m3L_s = 0;
-            motor.m3R = 255;
+            motor.m3R = 255 + soustracteur;
             direction.m3R_s = 0;
 
             goForward = true;
@@ -283,17 +298,17 @@ struct Robot_control
         if(command == 2)
         {
             // BACKWARD.
-            motor.m1L = 255;
+            motor.m1L = 255 + soustracteur;
             direction.m1L_s = 1;
-            motor.m1R = 255;
+            motor.m1R = 255 + soustracteur;
             direction.m1R_s = 1;
-            motor.m2L = 255;
+            motor.m2L = 255 + soustracteur;
             direction.m2L_s = 1;
-            motor.m2R = 255;
+            motor.m2R = 255 + soustracteur;
             direction.m2R_s = 1;
-            motor.m3L = 255;
+            motor.m3L = 255 + soustracteur;
             direction.m3L_s = 1;
-            motor.m3R = 255;
+            motor.m3R = 255 + soustracteur;
             direction.m3R_s = 1;
 
             goForward = false;
@@ -302,17 +317,17 @@ struct Robot_control
         if(command == 3)
         {
             // ROTATE LEFT.
-            motor.m1L = 255;
+            motor.m1L = 255 + soustracteur;
             direction.m1L_s = 0;
-            motor.m1R = 255;
+            motor.m1R = 255 + soustracteur;
             direction.m1R_s = 1;
-            motor.m2L = 255;
+            motor.m2L = 255 + soustracteur;
             direction.m2L_s = 0;
-            motor.m2R = 255;
+            motor.m2R = 255 + soustracteur;
             direction.m2R_s = 1;
-            motor.m3L = 255;
+            motor.m3L = 255 + soustracteur;
             direction.m3L_s = 0;
-            motor.m3R = 255;
+            motor.m3R = 255 + soustracteur;
             direction.m3R_s = 1;
 
             goForward = false;
@@ -321,17 +336,17 @@ struct Robot_control
         if(command == 4)
         {
             // ROTATE RIGHT.
-            motor.m1L = 255;
+            motor.m1L = 255 + soustracteur;
             direction.m1L_s = 1;
-            motor.m1R = 255;
+            motor.m1R = 255 + soustracteur;
             direction.m1R_s = 0;
-            motor.m2L = 255;
+            motor.m2L = 255 + soustracteur;
             direction.m2L_s = 1;
-            motor.m2R = 255;
+            motor.m2R = 255 + soustracteur;
             direction.m2R_s = 0;
-            motor.m3L = 255;
+            motor.m3L = 255 + soustracteur;
             direction.m3L_s = 1;
-            motor.m3R = 255;
+            motor.m3R = 255 + soustracteur;
             direction.m3R_s = 0;
 
             goForward = false;
@@ -340,17 +355,17 @@ struct Robot_control
         if(command == 5)
         {
             // LEFT SMOOTH.
-            motor.m1L = 120;
+            motor.m1L = 120 + soustracteur;
             direction.m1L_s = 0;
-            motor.m1R = 255;
+            motor.m1R = 255 + soustracteur;
             direction.m1R_s = 0;
-            motor.m2L = 120;
+            motor.m2L = 120 + soustracteur;
             direction.m2L_s = 0;
-            motor.m2R = 255;
+            motor.m2R = 255 + soustracteur;
             direction.m2R_s = 0;
-            motor.m3L = 120;
+            motor.m3L = 120 + soustracteur;
             direction.m3L_s = 0;
-            motor.m3R = 255;
+            motor.m3R = 255 + soustracteur;
             direction.m3R_s = 0;
 
             goForward = true;
@@ -359,17 +374,17 @@ struct Robot_control
         if(command == 6)
         {
             // RIGHT SMOOTH.
-            motor.m1L = 255;
+            motor.m1L = 255 + soustracteur;
             direction.m1L_s = 0;
-            motor.m1R = 120;
+            motor.m1R = 120 + soustracteur;
             direction.m1R_s = 0;
-            motor.m2L = 255;
+            motor.m2L = 255 + soustracteur;
             direction.m2L_s = 0;
-            motor.m2R = 120;
+            motor.m2R = 120 + soustracteur;
             direction.m2R_s = 0;
-            motor.m3L = 255;
+            motor.m3L = 255 + soustracteur;
             direction.m3L_s = 0;
-            motor.m3R = 120;
+            motor.m3R = 120 + soustracteur;
             direction.m3R_s = 0;
 
             goForward = true;
@@ -791,6 +806,9 @@ struct Stream_cam{
         std::chrono::high_resolution_clock::time_point last_detect_time;
         std::chrono::duration<double, std::milli> elapsed_time_since_detect;
         int time_threshold{333};
+        double horizontal_position{-1};  //in pixel.
+        double horizontal_threshold{30}; //in pixel.
+        double horizontal_center;
     }qr_var;
 
     int width{-1}, height{-1};
@@ -800,11 +818,10 @@ struct Stream_cam{
         int n = bbox.rows;
         for(int i = 0 ; i < n ; i++)
         {
-            if(bbox.at<float>(i,0) > 0 &&\
-            bbox.at<float>(i,1) > 0 &&\ 
-            bbox.at<float>((i+1) % n,0) > 0 && \
-            bbox.at<float>((i+1) % n,1) > 0)
-            cv::line(im, cv::Point2i(bbox.at<float>(i,0),bbox.at<float>(i,1)), cv::Point2i(bbox.at<float>((i+1) % n,0), bbox.at<float>((i+1) % n,1)), cv::Scalar(255,0,0), 3);
+            cv::line(im, cv::Point2i(bbox.at<float>(i,0),bbox.at<float>(i,1)), cv::Point2i(bbox.at<float>(i,2), bbox.at<float>(i,3)), cv::Scalar(0,0,0), 3);
+            cv::line(im, cv::Point2i(bbox.at<float>(i,0),bbox.at<float>(i,1)), cv::Point2i(bbox.at<float>(i,6), bbox.at<float>(i,7)), cv::Scalar(0,0,0), 3);
+            cv::line(im, cv::Point2i(bbox.at<float>(i,2),bbox.at<float>(i,3)), cv::Point2i(bbox.at<float>(i,4), bbox.at<float>(i,5)), cv::Scalar(0,0,0), 3);
+            cv::line(im, cv::Point2i(bbox.at<float>(i,6),bbox.at<float>(i,7)), cv::Point2i(bbox.at<float>(i,4), bbox.at<float>(i,5)), cv::Scalar(0,0,0), 3);
         }
         cv::imshow("Result", im);
     }
@@ -817,16 +834,13 @@ struct Stream_cam{
         */
 
         std::string data = qr_var.qrDecoder.detectAndDecode(inputImage, qr_var.bbox, qr_var.rectifiedImage);
-        
-        //note: first dim is QR, and second dim is the 4 points. 
-        std::cout << "size:" << qr_var.bbox << " " << qr_var.bbox.size[0] << "\n";
-        
+                
         /* if we detect QR code update value. */
         if(qr_var.bbox.size[0] > 0)
         {
-            std::cout << "element i from pts 1 : " << qr_var.bbox.at<float>(0,0) << "\n";
-            qr_var.qrIsDetected = true;
-            qr_var.last_detect_time = std::chrono::high_resolution_clock::now();
+            qr_var.horizontal_position = (qr_var.bbox.at<float>(0,0) + qr_var.bbox.at<float>(0,2))/2;
+            qr_var.qrIsDetected        = true;
+            qr_var.last_detect_time    = std::chrono::high_resolution_clock::now();
         }
 
         /* if we didn't detect qr code for many time we lost qr. */
@@ -834,11 +848,12 @@ struct Stream_cam{
         qr_var.elapsed_time_since_detect = now - qr_var.last_detect_time;
         if((int)qr_var.elapsed_time_since_detect.count() > qr_var.time_threshold)
         {
-            qr_var.qrIsDetected = false;
+            qr_var.horizontal_position = -1;
+            qr_var.qrIsDetected        = false;
         }
 
         /* debug display of camera. */
-        display_debug(inputImage, qr_var.bbox);
+        // display_debug(inputImage, qr_var.bbox);
     }
 };
 
