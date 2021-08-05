@@ -43,13 +43,7 @@ class Robot_system
         double distance_between_keypoint = 0.3;
         Robot_sensor robot_sensor_data;
         Stream_cam camera_data;
-
-        /*
-            this variable will make difference between:
-            (0) = normal autonomous_nav
-            (1) = go home autonomous_nav
-        */
-        int autonomous_nav_option = 0;
+        Mtimer robot_timer;
 
         // VARIABLE COMMANDE.
         Robot_control robot_control;
@@ -71,6 +65,14 @@ class Robot_system
         bool approach_orientation_isGood = false;
         double approach_orientation_angle = -1;
         double approach_orientation_threshold = 10;
+        /*
+            this variable will make difference between:
+            (0) = normal autonomous_nav
+            (1) = go home autonomous_nav
+        */
+        int autonomous_nav_option = 0;
+        int landing_attempt       = 0;
+        int phase_approach        = -1;
 
         // VARIABLE FICHIER & SYSTEM.
         System_param parametre;
@@ -199,8 +201,12 @@ class Robot_system
         void lost_mode_process();
         void takeoff_mode_process();
         void home_mode_process();
+        void approach_mode_ultrasonic_integration();
         void approach_mode_check_orientation();
         void approach_mode_motor_commande();
+        void approach_mode_try_found_qr();
+        void approach_mode_move_back_to_retry();
+        void approach_mode_repeat_procedure();
 
         // FONCTION MOTOR.
         void secure_command_transmission();

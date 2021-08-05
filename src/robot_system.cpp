@@ -502,22 +502,58 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             /* check if we are in good orientation. */
-            approach_mode_check_orientation();
+            if(phase_approach == -1) { approach_mode_check_orientation();}
                 
-            if(approach_orientation_isGood)
+            if(phase_approach != -1 && approach_orientation_isGood)
             {
-                /* be shure than we detect QR code on the wall. */
-                if(camera_data.qr_var.qrIsDetected)
+                if(landing_attempt < 4)
                 {
-                    approach_mode_motor_commande();
+                    /* be shure than we detect QR code on the wall. */
+                    if(camera_data.qr_var.qrIsDetected)
+                    {
+                        approach_mode_motor_commande();
+                    }
+                    else
+                    {
+                       if(phase_approach == 1)
+                       {
+                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_1;
+                           if((int)robot_timer.duration_t.count() > robot_timer.thres_1)
+                           {
+                               approach_mode_try_found_qr();
+                           }
+                       }
+                       if(phase_approach == 2)
+                       {
+                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_2;
+                           if((int)robot_timer.duration_t.count() > robot_timer.thres_2)
+                           {
+                               /* we are slowly move forward since robot_timer.thres_2 ms. 
+                               now move back. */
+                               approach_mode_move_back_to_retry();
+                           }
+                       }
+                       if(phase_approach == 3)
+                       {
+                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_3;
+                           if((int)robot_timer.duration_t.count() > robot_timer.thres_3)
+                           {
+                               /* we finish to move backward to retry a new detection.
+                               recompute path to home and repeate again. */
+                               approach_mode_repeat_procedure();
+                           }
+                       }
+                    }
+
+                    /* Ultrason integration for landing and safety. */
+                    approach_mode_ultrasonic_integration();
                 }
-
-                /* check if it's the good one. */
-                /* process the command. */
-                /* if we lost QR code since a lot of time, come back to approach point. */
-
-                // TODO : what we do if human or something block process, or how 
-                // integrate ultrason sensor in this process.
+                else
+                {
+                    /* we pass the max number of attemp. */
+                    change_mode(Robot_state().warning);
+                    std::cout << "[WARNING] max landing attempt passed." << std::endl;
+                }
             }
         }
         if(robot_general_state == Robot_state().manual)
@@ -575,6 +611,16 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             takeoff_mode_process();
+        }
+        if(robot_general_state == Robot_state().charging)
+        {
+            /*
+                DESCRIPTION: this mode it's call when robot reach is charging pad
+                    and during this moment all system is in low consommation mode.
+            */
+
+            // TODO :
+            std::cout << "[CHARGING] roger, roger... we are in tranquility sea." << std::endl;
         }
 
         /* Transmit new command to microcontroler. */
@@ -1425,7 +1471,8 @@ void Robot_system::init_socketio()
     h.set_open_listener (std::bind(&connection_listener::on_connected, l));
     h.set_close_listener(std::bind(&connection_listener::on_close    , l, std::placeholders::_1));
     h.set_fail_listener (std::bind(&connection_listener::on_fail     , l));
-    h.connect("http://127.0.0.1:5000");
+    h.connect("http://0.0.0.1:5000");
+    // h.connect("https://api-devo.herokuapp.com/:5000");
 
     /* Stop if we are not connect. */
     _lock.lock();
@@ -2484,8 +2531,54 @@ void Robot_system::home_mode_process()
         DESCRIPTION: this function call in thread_COMMAND will
     */
 
+    /* to prepare the approach. */
+    phase_approach = -1;
+
     autonomous_nav_option = 1;
     change_mode(Robot_state().compute_nav);
+}
+
+void Robot_system::approach_mode_ultrasonic_integration()
+{
+    /*
+        CALL IN    : thread_COMMAND (approach mode)
+        DESCRIPTION: this function will insure security of robot and it
+            environnement during the approach_mode and detect if we are 
+            in final phase of approach.
+    */
+
+    /* Update proximity sensor information. */
+    robot_sensor_data.proximity_sensor_detection(400.0, 600.0, thread_2_hz);
+
+    /* If we are in lest than approach_threshold we pass in full utrason docking. 
+    but we need a this moment to detect qr code. */
+    if(robot_sensor_data.ultra_obstacle.obsulF1 && robot_sensor_data.ultra_obstacle.obsulF2 && \
+    camera_data.qr_var.qrIsDetected)
+    {
+        if(robot_sensor_data.ultrasonic.ulF1 < 250.0 || \
+        robot_sensor_data.ultrasonic.ulF1 < 250.0)
+        {
+            /* If one of this two frontal front is blocked. */
+            phase_approach = 10; // the final one.
+        }
+    }
+
+    /* we are in full approach mode */
+    if(phase_approach == 10)
+    {
+        /* move very slowly forward. */
+        robot_control.manual_new_command(1, 1, 14);
+
+        /* final stop. */
+        if(robot_sensor_data.ultrasonic.ulF1 < 50.0 || \
+        robot_sensor_data.ultrasonic.ulF1 < 50.0)
+        {
+            robot_control.manual_new_command(0, 1, 14);
+            change_mode(Robot_state().charging);
+        }
+
+        // TODO : integration than current voltage sensor.
+    }
 }
 
 void Robot_system::approach_mode_check_orientation()
@@ -2493,11 +2586,11 @@ void Robot_system::approach_mode_check_orientation()
     /*
         DESCRIPTION: this function it's call in thread_COMMAND when
             we are in approach mode, and will compute command if we 
-            are not in good orientation.
+            are not in good orientation. (phase 1 = phase orientation)
     */
 
     /* we need to be not lost (visual slam is still working.) */
-    if(robot_position.last_pose.state_slamcore_tracking == 1)
+    if(robot_position.last_pose.state_slamcore_tracking == 1 && !approach_orientation_isGood)
     {
         double angle_ORIENTATION = robot_position.pixel.y_pixel;
         double angle_to_REACH    = approach_orientation_angle;
@@ -2546,16 +2639,25 @@ void Robot_system::approach_mode_check_orientation()
                 }
             }
 
-            //note: cela veut dire que si le robot à deja valider son angle
-            // et que le visual slam fonctionne encore, il peut se realigner ?
-            // approach_orientation_isGood = false;
+            phase_approach = -1; //we are not ready to pass to next.
         }
         else
         {
             robot_control.manual_new_command(0, 3, 7);
+            landing_attempt            += 1;
+            phase_approach              = 1;
             approach_orientation_isGood = true;
+            robot_timer.tp_1            = std::chrono::high_resolution_clock::now();
+            robot_timer.init_timer_approach_mode();
         }
 
+    }
+    else
+    {
+        /* we can found good orientation if visual slam is not working. */
+        /* TODO:
+        pass en mode lost et bien verifier que si on retrouve le slam
+        alors on repartira en mode home pour aller au point important. */
     }
 }
 
@@ -2589,12 +2691,55 @@ void Robot_system::approach_mode_motor_commande()
         camera_data.qr_var.horizontal_position >= \
         camera_data.qr_var.horizontal_center - camera_data.qr_var.horizontal_threshold)
         {
-            robot_control.manual_new_command(1, 2, 8);
+            robot_control.manual_new_command(1, 1, 8);
         }
 
     }
 }
 
+void Robot_system::approach_mode_try_found_qr()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMAND when the robot
+            has reach is approach point, and it has a good orientation, but  
+            it don't detect qr code since robot_timer.thres_1 ms.
+    */
+
+    /* move forward very slowly during robot_timer.thres_2 ms. */
+    robot_control.manual_new_command(1, 1, 13);
+
+    phase_approach     = 2;
+    robot_timer.tp_2   = std::chrono::high_resolution_clock::now();
+}
+
+void Robot_system::approach_mode_move_back_to_retry()
+{
+    /*
+        DESCRIPTION: this function it's call in thread_COMMAND when the robot
+            need to move backward to retry a new approach.
+    */
+
+    /* move forward very slowly during robot_timer.thres_2 ms. */
+    robot_control.manual_new_command(1, 2, 13);
+
+    phase_approach     = 3;
+    robot_timer.tp_3   = std::chrono::high_resolution_clock::now();
+}
+
+void Robot_system::approach_mode_repeat_procedure()
+{
+    /*
+        DESCRIPTION: when a tentative of docking is not successful
+            all phase we call this function to retry a new tentative.
+    */
+
+    /* security stop. */
+    robot_control.manual_new_command(0, 3, 13);
+
+    /* change to home mode. */
+    change_mode(Robot_state().home);
+
+}
 // FONCTION MOTOR.
 void Robot_system::compute_motor_autocommande()
 {

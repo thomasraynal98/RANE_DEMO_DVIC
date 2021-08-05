@@ -163,7 +163,10 @@ struct Robot_control
     (9)  : warning mode
     (10) : reset mode
     (11) : recompute A* mode when obstacle
-    (12) : takeoff mode */
+    (12) : takeoff mode 
+    (13) : approach mode phase QR slowly move forward because don't detect qr. 
+    (14) : approach mode phase final.
+    */
     int origin_commande{-1}; // for debug.
 
     bool operator==(Robot_control& ctr2)
@@ -857,9 +860,40 @@ struct Stream_cam{
     }
 };
 
+struct Mtimer{
+    /* DESCRIPTION : this structure will store all timing variable for
+    the code in a proper structure. */
+
+    std::chrono::duration<double, std::milli>      duration_t;
+
+    std::chrono::high_resolution_clock::time_point tp_1;
+    int                                            thres_1{2000}; //time to detect QR code after phase 1 approach mode.
+    
+    bool                                           timer_2_activate{false};               
+    std::chrono::high_resolution_clock::time_point tp_2;
+    int                                            thres_2{2000}; //robot will slowly move forward because it don't detect qr.
+
+    bool                                           timer_3_activate{false};               
+    std::chrono::high_resolution_clock::time_point tp_3;
+    int                                            thres_3{3000}; //robot will slowly move forward because it don't detect qr.
+
+    void init_timer_approach_mode()
+    {
+        /* NOTE: 
+        for the procedure of docking, we need to execute some action in a certain
+        way to ensure stability and robustess, the bools variables are importante in
+        this process and need to be push to false each time the robot do a tentative
+        of docking.*/
+
+        timer_2_activate = false;
+    }
+
+
+};
+
 bool test(bool is_cool);
 
-void from_quaternion_to_euler(Pose& current_pose);
+void from_quaternion_to_euler(Pose& cur_pose);
 
 void tokenize(std::string const &str, const char delim, std::vector<std::string> &out);
 
