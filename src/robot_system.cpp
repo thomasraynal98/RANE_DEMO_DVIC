@@ -370,7 +370,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
             else
             {
-                check_map(); // Need verification from server.
+                // check_map(); // Need verification from server.
             }
         }
         if(robot_general_state == Robot_state().waiting)
@@ -490,7 +490,6 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             home_mode_process();
         }
-        change_mode(Robot_state().approach);
         if(robot_general_state == Robot_state().approach)
         {
             /*
@@ -978,7 +977,7 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         // get_interne_data();
 
         /* Send data to server. */
-        send_data_to_server();
+        // send_data_to_server();
 
         // std::cout << "[THREAD-8]\n";
     }
@@ -1471,8 +1470,8 @@ void Robot_system::init_socketio()
     h.set_open_listener (std::bind(&connection_listener::on_connected, l));
     h.set_close_listener(std::bind(&connection_listener::on_close    , l, std::placeholders::_1));
     h.set_fail_listener (std::bind(&connection_listener::on_fail     , l));
-    h.connect("http://0.0.0.1:5000");
-    // h.connect("https://api-devo.herokuapp.com/:5000");
+    // h.connect("http://127.0.0.1:5000");
+    h.connect("http://api-devo.herokuapp.com/");
 
     /* Stop if we are not connect. */
     _lock.lock();
@@ -1484,7 +1483,9 @@ void Robot_system::init_socketio()
 
     /* Inform server. */
     current_socket = h.socket();
-    current_socket->emit("name", parametre.identity.modele + parametre.identity.version);
+    // current_socket->emit("robot", parametre.identity.modele + parametre.identity.version);
+    std::string envoie = "MK2R2_1";
+    current_socket->emit("robot", envoie);
     
     /* Initialisation server listening. */
     bind_events();
@@ -2056,12 +2057,35 @@ void Robot_system::return_nearest_path_keypoint(double threshold)
             then "threshold".
     */
 
-    // clean this vector.
+    /* clean this vector. */
     possible_candidate_target_keypoint.clear();
+
+    /* save the nearest kp in case of no kp is in threshold to avoid bug. */
+    bool isEmpty               = true;
+    Path_keypoint* nearest_kp  = NULL;
+    double distance_nearest_kp = 9999;
 
     for(int i = 0; i < keypoints_path.size(); i++)
     {
-        if(keypoints_path[i].distance_RKP < threshold) { possible_candidate_target_keypoint.push_back(&keypoints_path[i]);}
+        if(keypoints_path[i].distance_RKP < threshold) 
+        { 
+            isEmpty = false;
+            possible_candidate_target_keypoint.push_back(&keypoints_path[i]);
+        }
+        else
+        {
+            if(keypoints_path[i].distance_RKP < distance_nearest_kp)
+            {
+                /* this one is the nearest outside threshold. */
+                nearest_kp          = &keypoints_path[i];
+                distance_nearest_kp = keypoints_path[i].distance_RKP
+            }
+        }
+    }
+
+    if(isEmpty)
+    {
+        possible_candidate_target_keypoint.push_back(nearest_kp);
     }
 }
 
@@ -2740,6 +2764,7 @@ void Robot_system::approach_mode_repeat_procedure()
     change_mode(Robot_state().home);
 
 }
+
 // FONCTION MOTOR.
 void Robot_system::compute_motor_autocommande()
 {

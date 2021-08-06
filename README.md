@@ -21,16 +21,10 @@ https://www.redblobgames.com/pathfinding/a-star/introduction.html
 * [ADD]       : in make_weighted_map.cpp user input add lower case security for interest name.
 * [BUG]       : resolve the data running problem for metadata callback
 to add it to debug interface.
-* [ADD]       : for the moment the "try_avoid" area is only use for
-validation distance and not in A* algorythme.
 * [ADD]       : automatic distance between KP en fonction of drift security distance.
 * [ADD]       : take speed of robot in compte to create validation speed.
 * [BUG]       : put some lock during distance_RKP and target_angle update.
-* [BUG]       : bug of path planning when destination is very far.
-* [ADD]       : add global variable for map precision.
 * [ADD]       : smooth voltage sensor value.
-* [ADD]       : integrate smooth angle.
-* [BUG]       : the validation_angle on the target keypoint don't work. And they are some bug in angle compute but it's working.
 * [BUG]       : if robot pose is loin de la target alors bug. Surement du a la selection de nearest keypoint.
 
 ## INSTALLATION INFORMATION
