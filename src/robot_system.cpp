@@ -1483,12 +1483,13 @@ void Robot_system::init_socketio()
 
     /* Inform server. */
     current_socket = h.socket();
+    // TODO :
     // current_socket->emit("robot", parametre.identity.modele + parametre.identity.version);
     std::string envoie = "MK2R2_1";
     current_socket->emit("robot", envoie);
     
     /* Initialisation server listening. */
-    bind_events();
+    // bind_events();
 }
 
 // FONCTION NAVIGATION.
@@ -2054,7 +2055,8 @@ void Robot_system::return_nearest_path_keypoint(double threshold)
     /*
         DESCRIPTION: this function will run the keypoints_path vector
             and send back the pointer of keypoints in a distance of less
-            then "threshold".
+            then "threshold". If they are no point less far than the 
+            threshold, we send back the pointer of the less far of all.
     */
 
     /* clean this vector. */
@@ -2078,7 +2080,7 @@ void Robot_system::return_nearest_path_keypoint(double threshold)
             {
                 /* this one is the nearest outside threshold. */
                 nearest_kp          = &keypoints_path[i];
-                distance_nearest_kp = keypoints_path[i].distance_RKP
+                distance_nearest_kp = keypoints_path[i].distance_RKP;
             }
         }
     }
