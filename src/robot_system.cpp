@@ -51,7 +51,7 @@ std::mutex _lock;
 Robot_system* therobot;
 
 // FONCTION COMMUNICATION.
-bool Robot_system::update_yaml(std::string new_localisation, std::string new_map_id)
+bool Robot_system::update_yaml(std::string new_localisation, int new_map_id)
 {
     /*
         DESCRIPTION: this function it's call when we get a new map.
@@ -72,7 +72,7 @@ bool Robot_system::update_yaml(std::string new_localisation, std::string new_map
     return true;
 }
 
-bool Robot_system::update_map(std::string new_localisation, std::string new_map_id, std::string update_link_session, std::string update_link_png)
+bool Robot_system::update_map(std::string new_localisation, int new_map_id, std::string update_link_session, std::string update_link_png)
 {
     /*
         DESCRIPTION: we call this function when the current stored map is not
@@ -87,6 +87,7 @@ bool Robot_system::update_map(std::string new_localisation, std::string new_map_
     if(system(command_1.c_str()) != 0){ error = true;};
     if(system(command_2.c_str()) != 0){ error = true;};
 
+    std::cout << "[LIEN]" << update_link_session << " [LIEN_PNJ]" << update_link_png << "\n";
     /* Try to download new .session and .pnj from server. */
     std::string wget_session = "wget -P ../data_robot/Navigation/ ";
     wget_session += update_link_session;
@@ -119,7 +120,7 @@ void Robot_system::check_map()
     sio::message::ptr test = sio::object_message::create();
 
     test->get_map()["localisation"] = sio::string_message::create(parametre.map.localisation);
-    test->get_map()["map_id"]       = sio::string_message::create(parametre.map.id_map);
+    test->get_map()["map_id"]       = sio::int_message::create(parametre.map.id_map);
     
     current_socket->emit("check_map", test);
 }
@@ -143,7 +144,7 @@ void Robot_system::bind_events()
     current_socket->on("download", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
         _lock.lock();
-        std::string new_id              = data->get_map()["id"]->get_string();
+        int new_id                      = data->get_map()["id"]->get_int();
         std::string new_localisation    = data->get_map()["localisation"]->get_string();
         std::string update_link_session = data->get_map()["link_session"]->get_string();
         std::string update_link_png     = data->get_map()["link_png"]->get_string();
@@ -163,8 +164,9 @@ void Robot_system::bind_events()
     current_socket->on("command_to_do", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
         _lock.lock();
-        change_mode(Robot_state().manual);
-        robot_control.manual_commande_message = std::stoi(data->get_string());
+        // std::cout << "[COMMANDE_API]:" << data->get_string() << "\n";
+        // change_mode(Robot_state().manual);
+        // robot_control.manual_commande_message = std::stoi(data->get_string());
         _lock.unlock();
     }));
 
@@ -176,8 +178,16 @@ void Robot_system::bind_events()
         destination_point.first = data->get_map()["i"]->get_int();
         destination_point.second = data->get_map()["j"]->get_int();
 
+        /* normal autonomous mode. */
+        autonomous_nav_option = 0;
         change_mode(Robot_state().compute_nav);
         _lock.unlock();
+    }));
+
+    /* Ping pong from API. */
+    current_socket->on("ping", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
+    {
+        current_socket->emit("pong");
     }));
 }
 
@@ -207,6 +217,7 @@ void Robot_system::send_data_to_server()
 
     /* current mode. */
     data_robot->get_map()["robot_state"]     = sio::string_message::create(robot_general_state);
+    data_robot->get_map()["slam_state"]      = sio::int_message::create(robot_position.last_pose.state_slamcore_tracking);
     
     /* intern data. */
     data_robot->get_map()["cpu_heat"]        = sio::int_message::create(cpu_heat);
@@ -370,7 +381,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
             else
             {
-                // check_map(); // Need verification from server.
+                check_map(); // Need verification from server.
             }
         }
         if(robot_general_state == Robot_state().waiting)
@@ -1214,6 +1225,8 @@ bool Robot_system::init_basic_data()
         return false;
     }
 
+    // TODO :
+    std::string tempo;
     fsSettings2["Param_localisation"] >> parametre.map.localisation;
     fsSettings2["Param_id_map"] >> parametre.map.id_map;
     fsSettings2.release();
@@ -1464,6 +1477,8 @@ void Robot_system::init_socketio()
             connection from server API to robot.
     */
 
+    h.connect("http://api-devo-docker.herokuapp.com/");
+
     connection_listener li(h);
     l = &li;
 
@@ -1471,7 +1486,6 @@ void Robot_system::init_socketio()
     h.set_close_listener(std::bind(&connection_listener::on_close    , l, std::placeholders::_1));
     h.set_fail_listener (std::bind(&connection_listener::on_fail     , l));
     // h.connect("http://127.0.0.1:5000");
-    h.connect("http://api-devo.herokuapp.com/");
 
     /* Stop if we are not connect. */
     _lock.lock();
@@ -1483,13 +1497,14 @@ void Robot_system::init_socketio()
 
     /* Inform server. */
     current_socket = h.socket();
+
     // TODO :
     // current_socket->emit("robot", parametre.identity.modele + parametre.identity.version);
     std::string envoie = "MK2R2_1";
     current_socket->emit("robot", envoie);
     
     /* Initialisation server listening. */
-    // bind_events();
+    bind_events();
 }
 
 // FONCTION NAVIGATION.

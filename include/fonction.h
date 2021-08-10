@@ -752,7 +752,7 @@ struct System_param{
     struct Map
     {
         std::string localisation{""};
-        std::string id_map{""};
+        int id_map{-1};
         bool StoredMapIsGood{false};
     }map;
 

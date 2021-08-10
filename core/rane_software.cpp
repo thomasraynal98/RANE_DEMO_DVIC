@@ -34,6 +34,8 @@
 
 int main () {
     Robot_system robot1 = Robot_system();
+    // auto oui = sio::client();
+    // oui.connect('https://api-devo-docker.herokuapp.com/')
 
     return 0;
 }

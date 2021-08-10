@@ -148,8 +148,8 @@ class Robot_system
         Robot_system();
 
         // FONCTION COMMUNICATION.
-        bool update_yaml(std::string new_localisation, std::string new_map_id);
-        bool update_map(std::string new_localisation, std::string new_map_id, std::string update_link_session, std::string update_link_png);
+        bool update_yaml(std::string new_localisation, int new_map_id);
+        bool update_map(std::string new_localisation, int new_map_id, std::string update_link_session, std::string update_link_png);
         void check_map();
         void bind_events();
         void send_data_to_server();
