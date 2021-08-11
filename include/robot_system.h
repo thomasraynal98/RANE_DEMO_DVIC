@@ -50,6 +50,7 @@ class Robot_system
         Robot_control robot_control_last_send;
 
         // VARIABLE NAVIGATION.
+        // TODO : bien décrire fonctionnement des variable en dessous.
         bool slam_process_state = false; // represent pure working process.
         cv::Mat map_weighted;
         cv::Mat map_weighted_obstacle;

@@ -233,9 +233,15 @@ void Robot_system::send_data_to_server()
     data_robot->get_map()["ulB2"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB2);
     data_robot->get_map()["voltage"]         = sio::double_message::create(robot_sensor_data.energy.current);
     data_robot->get_map()["current"]         = sio::double_message::create(robot_sensor_data.energy.voltage);
+    
+    /* Speed data. */
+    data_robot->get_map()["robot_speed"]     = sio::double_message::create(robot_position.position.robot_speed);
+
+    /* Utilisation data. */
+    data_robot->get_map()["robot_use_time"]  = sio::int_message::create((int)robot_timer.duration_tX.count());
 
     /* send it. */
-    current_socket->emit("data_robot", data_robot);
+    current_socket->emit("global_data", data_robot);
 }
 
 void Robot_system::send_debug_data()
@@ -357,7 +363,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
-        // std::cout << "[ROBOT_STATE:" << robot_general_state << "]\n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << "]\n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -984,10 +990,11 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         // GET INTERNE VARIABLE BEFORE SEND.
 
         /* Update interne information data. */
-        // get_interne_data();
+        get_interne_data();
 
         /* Send data to server. */
-        // send_data_to_server();
+        robot_timer.duration_tX = std::chrono::high_resolution_clock::now() - robot_timer.tp_X;
+        send_data_to_server();
 
         // std::cout << "[THREAD-8]\n";
     }
@@ -1003,6 +1010,7 @@ Robot_system::Robot_system()
     cpu_heat                  = -1;
     cpu_load                  = -1;
     fan_power                 = -1;
+    robot_timer.tp_X          = std::chrono::high_resolution_clock::now();
     therobot = this;
 
     /* STEP 2. Initialisation SLAM process. */
@@ -2489,7 +2497,8 @@ void Robot_system::mode_checking()
         if((robot_position.last_pose.state_slamcore_tracking == 2 || \
         robot_position.last_pose.state_slamcore_tracking == 0) && \
         (robot_general_state != Robot_state().takeoff && \ 
-        robot_general_state != Robot_state().approach) && takeoff_begin)
+        robot_general_state != Robot_state().approach && \
+        robot_general_state != Robot_state().manual) && takeoff_begin)
         {
             change_mode(Robot_state().lost);
         }

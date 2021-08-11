@@ -839,7 +839,7 @@ struct Stream_cam{
         std::string data = qr_var.qrDecoder.detectAndDecode(inputImage, qr_var.bbox, qr_var.rectifiedImage);
                 
         /* if we detect QR code update value. */
-        if(qr_var.bbox.size[0] > 0)
+        if(qr_var.bbox.size[0] != 0.0)
         {
             qr_var.horizontal_position = (qr_var.bbox.at<float>(0,0) + qr_var.bbox.at<float>(0,2))/2;
             qr_var.qrIsDetected        = true;
@@ -877,6 +877,10 @@ struct Mtimer{
     std::chrono::high_resolution_clock::time_point tp_3;
     int                                            thres_3{3000}; //robot will slowly move forward because it don't detect qr.
 
+    /* Since robot is ON. */
+    std::chrono::duration<double, std::milli>      duration_tX;
+    std::chrono::high_resolution_clock::time_point tp_X;
+
     void init_timer_approach_mode()
     {
         /* NOTE: 
@@ -887,8 +891,6 @@ struct Mtimer{
 
         timer_2_activate = false;
     }
-
-
 };
 
 bool test(bool is_cool);
