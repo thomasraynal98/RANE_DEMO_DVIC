@@ -164,9 +164,8 @@ void Robot_system::bind_events()
     current_socket->on("command_to_do", sio::socket::event_listener_aux([&](std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp)
     {
         _lock.lock();
-        // std::cout << "[COMMANDE_API]:" << data->get_string() << "\n";
-        // change_mode(Robot_state().manual);
-        // robot_control.manual_commande_message = std::stoi(data->get_string());
+        change_mode(Robot_state().manual);
+        robot_control.manual_commande_message = std::stoi(data->get_string());
         _lock.unlock();
     }));
 
@@ -175,7 +174,7 @@ void Robot_system::bind_events()
     {
         _lock.lock();
 
-        destination_point.first = data->get_map()["i"]->get_int();
+        destination_point.first  = data->get_map()["i"]->get_int();
         destination_point.second = data->get_map()["j"]->get_int();
 
         /* normal autonomous mode. */
