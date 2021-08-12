@@ -85,8 +85,8 @@ class Robot_system
         std::string path_to_current_session = "../data/session/dvic2.session";
 
         // VARIABLE MICROCONTROLER. (A=COMMANDE/B=SENSOR)
-        LibSerial::SerialPort** __serial_port_controle_A;
-        LibSerial::SerialPort** __serial_port_sensor_B;
+        LibSerial::SerialPort** __serial_port_controle_A = new LibSerial::SerialPort*;
+        LibSerial::SerialPort** __serial_port_sensor_B = new LibSerial::SerialPort*;
         std::string port_A_name;                                 // note: this is the string name of the serial port.
         std::string port_B_name;
         std::string controler_A_pong = "0/A";                    // note: the pong message is the answer from microcontroler after get "1/X" ping.

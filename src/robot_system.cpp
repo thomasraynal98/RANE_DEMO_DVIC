@@ -665,7 +665,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
     // TIME VARIABLE
     int time_of_ping     = 500;                                                  // (2Hz) time wait until ping.
     int time_of_loop     = 1000/frequency;                                       // this is the real factor of Hz of this thread.
-    int time_since_lost  = 500;                                                  // time to declare the port lost and close.
+    int time_since_lost  = 800;                                                  // time to declare the port lost and close.
     bool is_lost         = false;
 
     std::chrono::high_resolution_clock::time_point timer_start, current_timer;
@@ -739,6 +739,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
             }
             else
             {
+                last_ping_time = std::chrono::high_resolution_clock::now();
                 // we are disconnect.
                 state = 2;
                 // we try to found it.
@@ -1073,75 +1074,78 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
     */
     
     // Check all ttyACMX.
-    for (int i=0; i<4; i++)
-    {
-        LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
-        std::string name_port = "/dev/ttyACM" + std::__cxx11::to_string(i);
-        bool is_openable = true;
+    // for (int i=0; i<4; i++)
+    // {
+    //     LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
+    //     std::string name_port = "/dev/ttyACM" + std::__cxx11::to_string(i);
+    //     bool is_openable = true;
 
-        if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
+    //     if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
 
-        try{ serial_port->Open(name_port);}
-        catch (LibSerial::OpenFailed ex)
-        {
-            if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
-            is_openable = false;
-        }
-        catch (LibSerial::AlreadyOpen ex)
-        {
-            if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
-            is_openable = false;
-        }
+    //     try{ serial_port->Open(name_port);}
+    //     catch (LibSerial::OpenFailed ex)
+    //     {
+    //         if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
+    //         is_openable = false;
+    //     }
+    //     catch (LibSerial::AlreadyOpen ex)
+    //     {
+    //         if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
+    //         is_openable = false;
+    //     }
 
-        if(is_openable)
-        {
-            if(wait_option){ usleep(2000000);}
-            if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
-            if(debug_mode==1) {std::cout << "message:" << message << "\n";}
-            try{ serial_port->Write(message);}
-            catch(std::runtime_error ex) { std::cout << "nop\n"; }
+    //     if(is_openable)
+    //     {
+    //         if(wait_option){ usleep(2000000);}
+    //         if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
+    //         if(debug_mode==1) {std::cout << "message:" << message << "\n";}
+    //         try{ serial_port->Write(message);}
+    //         catch(std::runtime_error ex) { std::cout << "nop\n"; }
 
-            std::string reponse;
-            serial_port->ReadLine(reponse);
-            if(debug_mode==1) {std::cout << "reponse:" << reponse;}
+    //         std::string reponse;
+    //         serial_port->ReadLine(reponse);
+    //         if(debug_mode==1) {std::cout << "reponse:" << reponse;}
     
-            if(match_ping_pong(message, reponse))
-            {   
-                // TODO: move this cheat code.
-                if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
-                if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
-                // TODOEND.
+    //         if(match_ping_pong(message, reponse))
+    //         {   
+    //             // TODO: move this cheat code.
+    //             if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
+    //             if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
+    //             // TODOEND.
 
-                return serial_port;
-            }
-            else{serial_port->Close();}
-        }
-    }
+    //             return serial_port;
+    //         }
+    //         else{serial_port->Close();}
+    //     }
+    // }
 
+    // std::cout << "[DEBUTFONCION:" << serial_port << "]\n";
     // Check all ttyUSBX.
     for (int i=0; i<4; i++)
     {
         LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
+        // LibSerial::SerialPort* serial_port2 = new LibSerial::SerialPort;
         std::string name_port = "/dev/ttyUSB" + std::__cxx11::to_string(i);
         bool is_openable = true;
 
-        if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
+        if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
 
         try{ serial_port->Open(name_port);}
-        catch (LibSerial::OpenFailed ex)
-        {
-            if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
-            is_openable = false;
-        }
         catch (LibSerial::AlreadyOpen ex)
         {
             if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
             is_openable = false;
         }
+        catch (LibSerial::OpenFailed ex)
+        {
+            if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
+            is_openable = false;
+        }
 
         if(is_openable)
         {
-            if(wait_option){ usleep(2000000);}
+            if(wait_option){ usleep(500000);}
+
             if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
             if(debug_mode==1) {std::cout << "message:" << message << "\n";}
             try{ serial_port->Write(message);}
@@ -1157,10 +1161,10 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
                 if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
                 if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
                 // TODOEND.
-
+                std::cout << "[MATCH]" << serial_port << std::endl;
                 return serial_port;
             }
-            else{serial_port->Close();}
+            else{serial_port->Close(); std::cout << "[CLOSE_PORT]" << std::endl;}
         }
     }
 
@@ -1416,12 +1420,8 @@ int Robot_system::init_microcontroler()
 
     int output = -1;
 
-    LibSerial::SerialPort* _serial_port_controle_A;
-    LibSerial::SerialPort* _serial_port_sensor_B;
-    __serial_port_controle_A  = &_serial_port_controle_A;
-    __serial_port_sensor_B    = &_serial_port_sensor_B;
-    *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
     *__serial_port_sensor_B   = get_available_port(0, controler_B_pong, true);
+    *__serial_port_controle_A = get_available_port(0, controler_A_pong, true);
 
     if(*__serial_port_controle_A != NULL)
     {
@@ -1434,7 +1434,7 @@ int Robot_system::init_microcontroler()
         else{ output += 1;}
     }
 
-    return -1;
+    return output;
 }
 
 void Robot_system::init_thread_system()
@@ -1455,25 +1455,25 @@ void Robot_system::init_thread_system()
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
-    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this,  10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
-    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
+    // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
+    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
-    thread_1_localisation.join();
-    thread_2_commande.join();
+    // thread_1_localisation.join();
+    // thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
     thread_5_listener_MICROB.join();
     thread_6_speaker_MICROB.join();
-    thread_7_listener_SERVER.join();
-    thread_8_speaker_SERVER.join();
+    // thread_7_listener_SERVER.join();
+    // thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 }
 

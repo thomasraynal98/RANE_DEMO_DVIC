@@ -836,24 +836,24 @@ struct Stream_cam{
                 will check if we detect a QR CODE.
         */
 
-        std::string data = qr_var.qrDecoder.detectAndDecode(inputImage, qr_var.bbox, qr_var.rectifiedImage);
+        // std::string data = qr_var.qrDecoder.detectAndDecode(inputImage, qr_var.bbox, qr_var.rectifiedImage);
                 
-        /* if we detect QR code update value. */
-        if(qr_var.bbox.size[0] != 0.0)
-        {
-            qr_var.horizontal_position = (qr_var.bbox.at<float>(0,0) + qr_var.bbox.at<float>(0,2))/2;
-            qr_var.qrIsDetected        = true;
-            qr_var.last_detect_time    = std::chrono::high_resolution_clock::now();
-        }
+        // /* if we detect QR code update value. */
+        // if(qr_var.bbox.size[0] != 0.0)
+        // {
+        //     qr_var.horizontal_position = (qr_var.bbox.at<float>(0,0) + qr_var.bbox.at<float>(0,2))/2;
+        //     qr_var.qrIsDetected        = true;
+        //     qr_var.last_detect_time    = std::chrono::high_resolution_clock::now();
+        // }
 
-        /* if we didn't detect qr code for many time we lost qr. */
-        auto now = std::chrono::high_resolution_clock::now();
-        qr_var.elapsed_time_since_detect = now - qr_var.last_detect_time;
-        if((int)qr_var.elapsed_time_since_detect.count() > qr_var.time_threshold)
-        {
-            qr_var.horizontal_position = -1;
-            qr_var.qrIsDetected        = false;
-        }
+        // /* if we didn't detect qr code for many time we lost qr. */
+        // auto now = std::chrono::high_resolution_clock::now();
+        // qr_var.elapsed_time_since_detect = now - qr_var.last_detect_time;
+        // if((int)qr_var.elapsed_time_since_detect.count() > qr_var.time_threshold)
+        // {
+        //     qr_var.horizontal_position = -1;
+        //     qr_var.qrIsDetected        = false;
+        // }
 
         /* debug display of camera. */
         // display_debug(inputImage, qr_var.bbox);
