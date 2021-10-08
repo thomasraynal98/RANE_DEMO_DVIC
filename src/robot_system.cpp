@@ -383,6 +383,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(parametre.map.StoredMapIsGood)
             {
                 // change_mode(Robot_state().takeoff);
+                change_mode(Robot_state().takeoff);
             }
             else
             {
@@ -615,7 +616,8 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This mode is automatly call when slam process is lost.
             */
 
-            lost_mode_process();
+            robot_control.manual_new_command(0, 3, 6);
+            // lost_mode_process();
         }
         if(robot_general_state == Robot_state().takeoff)
         {
