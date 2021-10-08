@@ -252,7 +252,7 @@ struct Robot_control
         manual_commande_message = command;
         int soustracteur        = -1;
         if(speed_lvl == 3) { soustracteur = -0;}
-        if(speed_lvl == 2) { soustracteur = -30;}
+        if(speed_lvl == 2) { soustracteur = -60;}
         if(speed_lvl == 1) { soustracteur = -150;}
 
         /* Change command. */

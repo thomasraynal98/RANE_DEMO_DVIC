@@ -2365,12 +2365,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF0+diff_threshold< robot_sensor_data.ultrasonic.ulF3)
             {
                 // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 3, 2);
+                robot_control.manual_new_command(6, 1, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 3, 2);
+                robot_control.manual_new_command(5, 1, 2);
             }
         }
 
@@ -2386,12 +2386,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF0+diff_threshold < robot_sensor_data.ultrasonic.ulB0)
             {
                 // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 3, 2);
+                robot_control.manual_new_command(6, 1, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
             {
                 // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 3, 2);
+                robot_control.manual_new_command(5, 1, 2);
             }
         }
         
@@ -2401,12 +2401,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
             if(robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulB2)
             {
                 // Are currently going to the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 3, 2);
+                robot_control.manual_new_command(5, 1, 2);
             }
             else if (robot_sensor_data.ultrasonic.ulB2+diff_threshold < robot_sensor_data.ultrasonic.ulF3)
             {
                 // Are currently moving away the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 3, 2);
+                robot_control.manual_new_command(6, 1, 2);
             }
         }
 
@@ -2432,12 +2432,12 @@ void Robot_system::autonomous_mode_ultrasonic_integration()
         if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
         {
             /* We have a wall on a left. */
-            robot_control.manual_new_command(6, 3, 3);
+            robot_control.manual_new_command(6, 1, 3);
         }
         if(robot_sensor_data.detection_analyse.isWallDetectionRight)
         {
             /* We have a wall on a right. */
-            robot_control.manual_new_command(5, 3, 4);
+            robot_control.manual_new_command(5, 1, 4);
         }
     }
 
@@ -2818,15 +2818,15 @@ void Robot_system::compute_motor_autocommande()
             if(angle_RKP - angle_ORIENTATION <= 180)
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(4, 3, 1);}
-                else { robot_control.manual_new_command(6, 3, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
+                else { robot_control.manual_new_command(6, 1, 1);}
 
             }
             else
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(3, 3, 1);}
-                else { robot_control.manual_new_command(5, 3, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
+                else { robot_control.manual_new_command(5, 1, 1);}
             }
         }
         else
@@ -2834,21 +2834,21 @@ void Robot_system::compute_motor_autocommande()
             if(angle_ORIENTATION - angle_RKP <= 180)
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(3, 3, 1);}
-                else { robot_control.manual_new_command(5, 3, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
+                else { robot_control.manual_new_command(5, 1, 1);}
             }
             else
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(4, 3, 1);}
-                else { robot_control.manual_new_command(6, 3, 1);};
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
+                else { robot_control.manual_new_command(6, 1, 1);};
             }
         }
     }
     else
     {
         // Forward.
-        robot_control.manual_new_command(1, 3, 1);
+        robot_control.manual_new_command(1, 2, 1);
     }
 }
 
