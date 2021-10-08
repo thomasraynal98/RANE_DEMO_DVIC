@@ -948,13 +948,13 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // TODO: NO EXPLICATION REQUIRED.
         // destination_point.first  = 96;
         // destination_point.second = 76;
-        std::cout << "READ DESTINATION>";
-        int rien;
-        std::cin >> rien;
-        destination_point.first  = 96;
-        destination_point.second = 76;
-        change_mode(Robot_state().compute_nav);
-        std::cout << robot_general_state << std::endl;
+        // std::cout << "READ DESTINATION>";
+        // int rien;
+        // std::cin >> rien;
+        // destination_point.first  = 96;
+        // destination_point.second = 76;
+        // change_mode(Robot_state().compute_nav);
+        // std::cout << robot_general_state << std::endl;
         // robot_control.manual_commande_message = rien;
         // robot_general_state = Robot_state().manual;
     }
