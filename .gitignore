@@ -2,3 +2,4 @@ build/
 lib/
 thirdparty/
 *.so
+data_robot/Navigation/map.session
