@@ -382,7 +382,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             is available. */
             if(parametre.map.StoredMapIsGood)
             {
-                change_mode(Robot_state().takeoff);
+                // change_mode(Robot_state().takeoff);
             }
             else
             {
@@ -587,7 +587,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             secure_command_transmission();
 
             /* Security check. */
-            manual_mode_security_sensor();
+            // manual_mode_security_sensor();
         }
         if(robot_general_state == Robot_state().warning)
         {
@@ -635,7 +635,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             */
 
             // TODO :
-            std::cout << "[CHARGING] roger, roger... we are in tranquility sea." << std::endl;
+            std::cout << "[CHARGING]" << std::endl;
         }
 
         /* Transmit new command to microcontroler. */
@@ -1455,25 +1455,25 @@ void Robot_system::init_thread_system()
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
-    // thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_5_listener_MICROB  = std::thread(&Robot_system::thread_LISTENER      , this,  10,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B"); 
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
-    // thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
-    // thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
+    thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
+    thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
     thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
-    // thread_1_localisation.join();
-    // thread_2_commande.join();
+    thread_1_localisation.join();
+    thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
     thread_5_listener_MICROB.join();
     thread_6_speaker_MICROB.join();
-    // thread_7_listener_SERVER.join();
-    // thread_8_speaker_SERVER.join();
+    thread_7_listener_SERVER.join();
+    thread_8_speaker_SERVER.join();
     thread_9_thread_ANALYSER.join();
 }
 
@@ -1740,12 +1740,12 @@ void Robot_system::from_3DW_to_2DM()
     robot_position.pixel.j = 200;
 
     //TODO: REMOVE THE DEBUG UP.
-    robot_position.pixel.i = (int)((robot_position.position.x +  6.25)  / 0.05);
-    robot_position.pixel.j = (int)((19.35 - robot_position.position.y)  / 0.05);
+    robot_position.pixel.i = (int)((robot_position.position.x +  30.3)  / 0.05);
+    robot_position.pixel.j = (int)((17.50 - robot_position.position.y)  / 0.05);
 
     // TRANSFORMATION
-    robot_position.pixel.ti = (int)((robot_position.transformation.x +  6.25)  / 0.05);
-    robot_position.pixel.tj = (int)((19.35 - robot_position.transformation.y)  / 0.05);
+    robot_position.pixel.ti = (int)((robot_position.transformation.x +  30.3)  / 0.05);
+    robot_position.pixel.tj = (int)((17.50 - robot_position.transformation.y)  / 0.05);
 
     /* compute position center of sensor in pixel coordinate. */
     double d   = (robot_sensor_data.architecture.distance_centraux/2)/50; 
@@ -1764,8 +1764,8 @@ Pair Robot_system::from_3DW_to_2DM2(double x, double y)
     */
 
     Pair point_pixel(0,0);
-    point_pixel.first  = (int)((x +  6.25)  / 0.05);
-    point_pixel.second = (int)((19.35 - y)  / 0.05);
+    point_pixel.first  = (int)((x +  30.3)  / 0.05);
+    point_pixel.second = (int)((17.50 - y)  / 0.05);
 
     /* for server visualisation. */
     robot_position.pixel.vi           = point_pixel.first;
