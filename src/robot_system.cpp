@@ -1458,7 +1458,7 @@ void Robot_system::init_thread_system()
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
@@ -1469,7 +1469,7 @@ void Robot_system::init_thread_system()
     // thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
-    // thread_1_localisation.join();
+    thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
