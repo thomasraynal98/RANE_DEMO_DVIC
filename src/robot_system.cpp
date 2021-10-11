@@ -363,7 +363,8 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << "]\n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
+        "] [POSITION:" << robot_position.pixel.vi << "," << robot_position.pixel.vj << "] \n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -762,7 +763,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                 catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                 catch(std::runtime_error ex){}
                 
-                // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
             // for Microcontroler B.
             if(micro_name == "B")
@@ -1457,7 +1458,7 @@ void Robot_system::init_thread_system()
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
@@ -1465,10 +1466,10 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
-    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
+    // thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
-    thread_1_localisation.join();
+    // thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
@@ -1476,7 +1477,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
-    thread_9_thread_ANALYSER.join();
+    // thread_9_thread_ANALYSER.join();
 }
 
 void Robot_system::init_socketio()
@@ -1486,7 +1487,6 @@ void Robot_system::init_socketio()
             connection from server API to robot.
     */
 
-    h.connect("http://api-devo-docker.herokuapp.com/");
 
     connection_listener li(h);
     l = &li;
@@ -1494,6 +1494,7 @@ void Robot_system::init_socketio()
     h.set_open_listener (std::bind(&connection_listener::on_connected, l));
     h.set_close_listener(std::bind(&connection_listener::on_close    , l, std::placeholders::_1));
     h.set_fail_listener (std::bind(&connection_listener::on_fail     , l));
+    h.connect("http://api-devo-docker.herokuapp.com/");
     // h.connect("http://127.0.0.1:5000");
 
     /* Stop if we are not connect. */
