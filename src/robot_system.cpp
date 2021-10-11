@@ -364,7 +364,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
         std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
-        "] [POSITION:" << robot_position.pixel.vi << "," << robot_position.pixel.vj << "] \n";
+        "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
