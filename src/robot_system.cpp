@@ -2551,7 +2551,7 @@ void Robot_system::takeoff_mode_process()
         }
         if(!takeoff_begin)
         {   
-            robot_control.manual_new_command(2, 2, 12); // backward.
+            robot_control.manual_new_command(0, 2, 12); // backward.
             takeoff_begin_time = std::chrono::high_resolution_clock::now();
             takeoff_begin = true;
         }
