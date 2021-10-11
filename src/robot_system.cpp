@@ -2296,10 +2296,10 @@ void Robot_system::manual_mode_process()
     if(robot_control.manual_commande_message == 0)  { robot_control.manual_new_command(0, 3, 0);}
     if(robot_control.manual_commande_message == 1)  { robot_control.manual_new_command(1, 3, 0);}
     if(robot_control.manual_commande_message == 2)  { robot_control.manual_new_command(2, 3, 0);}
-    if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3, 3, 0);}
-    if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4, 3, 0);}
-    if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5, 3, 0);}
-    if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6, 3, 0);}
+    if(robot_control.manual_commande_message == 3)  { robot_control.manual_new_command(3, 1, 0);}
+    if(robot_control.manual_commande_message == 4)  { robot_control.manual_new_command(4, 1, 0);}
+    if(robot_control.manual_commande_message == 5)  { robot_control.manual_new_command(5, 2, 0);}
+    if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6, 2, 0);}
     if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7, 3, 0);}
     if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8, 3, 0);}
 }
