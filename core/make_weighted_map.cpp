@@ -148,7 +148,7 @@ int main(int argc, char** argv)
     std::cout << "[START] Process 2 : Define all area. \n";
     int physic_border        = 6;  // 5 cm x 6 = 30 cm
     int drift_security       = 9;  // 6 + (5 cm x 3) 
-    int try_avoid            = 13;
+    int try_avoid            = 18; // 9 + (5 cm x 9)
 
     int color_physic_border  = 50;
     int color_drift_security = 120;

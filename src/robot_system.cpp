@@ -951,12 +951,12 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // TODO: NO EXPLICATION REQUIRED.
         // destination_point.first  = 96;
         // destination_point.second = 76;
-        // std::cout << "READ DESTINATION>";
-        // int rien;
-        // std::cin >> rien;
-        // destination_point.first  = 96;
-        // destination_point.second = 76;
-        // change_mode(Robot_state().compute_nav);
+        std::cout << "READ DESTINATION>";
+        int rien;
+        std::cin >> rien;
+        destination_point.first  = 1032;
+        destination_point.second = 793;
+        change_mode(Robot_state().compute_nav);
         // std::cout << robot_general_state << std::endl;
         // robot_control.manual_commande_message = rien;
         // robot_general_state = Robot_state().manual;
@@ -1466,7 +1466,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
-    // thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
+    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
     thread_1_localisation.join();
@@ -1477,7 +1477,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
-    // thread_9_thread_ANALYSER.join();
+    thread_9_thread_ANALYSER.join();
 }
 
 void Robot_system::init_socketio()
@@ -1597,6 +1597,7 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 		// Add this vertex to the closed list
 		i = std::get<1>(p); // second element of tupla
 		j = std::get<2>(p); // third element of tupla
+        Pair parent(i,j);
 		// Remove this vertex from the open list
 		openList.pop();
 		closedList[i][j] = true;
@@ -1658,15 +1659,19 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
                         /* Add weight to gNew if path is in proximity area. */
 
                         if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 255)
-						    {gNew = cellDetails[i][j].g + 1.0;}
+						    {fNew = cellDetails[i][j].f + 1.0;}
                         if((int)grid.at<uchar>(neighbour.second, neighbour.first) == 200)
-						    {gNew = cellDetails[i][j].g + 7.0;}
+						    {fNew = cellDetails[i][j].f + 4.0;}
+
+                        if(add_y != 0 && add_x !=0){fNew += 0.01;}
+                        fNew = fNew + calculateHValue(neighbour, parent);
                         
                         /* Compute distance from source and destination. */
-						hNew = calculateHValue(neighbour, dest);
-                        tNew = calculateHValue(neighbour, src);
+                        
+						// hNew = calculateHValue(neighbour, dest);
+                        // tNew = calculateHValue(neighbour, src);
 
-                        fNew = gNew + hNew + tNew;
+                        // fNew = gNew + hNew + tNew;
 						// If it isn’t on the open list, add
 						// it to the open list. Make the
 						// current square the parent of this
@@ -1677,16 +1682,18 @@ bool Robot_system::aStarSearch(cv::Mat grid, Pair& src, Pair& dest)
 						// already, check to see if this
 						// path to that square is better,
 						// using 'f' cost as the measure.
-						if (cellDetails[neighbour.first][neighbour.second].f == -1 || cellDetails[neighbour.first][neighbour.second].f > fNew) 
+						if (cellDetails[neighbour.first][neighbour.second].f == 0 || cellDetails[neighbour.first][neighbour.second].f > fNew) 
                         {
-							openList.emplace(fNew, neighbour.first,neighbour.second);
+                            hNew = calculateHValue(neighbour, dest);
+                            tNew = 0;//calculateHValue(neighbour, src);
+							openList.emplace(fNew + hNew + tNew, neighbour.first,neighbour.second);
 
 							// Update the details of this
 							// cell
-							cellDetails[neighbour.first][neighbour.second].g      = gNew;
-							cellDetails[neighbour.first][neighbour.second].h      = hNew;
+							// cellDetails[neighbour.first][neighbour.second].g      = gNew;
+							// cellDetails[neighbour.first][neighbour.second].h      = hNew;
 							cellDetails[neighbour.first][neighbour.second].f      = fNew;
-                            cellDetails[neighbour.first][neighbour.second].t      = tNew;
+                            // cellDetails[neighbour.first][neighbour.second].t      = tNew;
 							cellDetails[neighbour.first][neighbour.second].parent = { i, j };
 						}
 					}
@@ -3941,7 +3948,7 @@ void Robot_system::thread_ANALYSER(int frequency)
             debug_add_robot_pose(copy_debug_visual_map);
             debug_add_path_keypoint(copy_debug_visual_map);
 
-            cv::resize(copy_debug_visual_map, copy_debug_visual_map, cv::Size(0,0),1.9,1.9,cv::INTER_LINEAR);//Same as resize(img, dst, Size(img.cols*1.5,img.rows*1.5),0,0,CV_INTER_LINEAR );
+            cv::resize(copy_debug_visual_map, copy_debug_visual_map, cv::Size(0,0),1.0,1.0,cv::INTER_LINEAR);//Same as resize(img, dst, Size(img.cols*1.5,img.rows*1.5),0,0,CV_INTER_LINEAR );
 
             cv::namedWindow("Debug visual map",cv::WINDOW_AUTOSIZE);
             cv::imshow("Debug visual map", copy_debug_visual_map);

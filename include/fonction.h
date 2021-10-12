@@ -726,10 +726,10 @@ struct cell {
     double f, g, h, t;
     cell()
         : parent()
-        , f(-1)
-        , g(-1)
-        , h(-1)
-        , t(-1)
+        , f(0)
+        , g(0)
+        , h(0)
+        , t(0)
     {
     }
 };
