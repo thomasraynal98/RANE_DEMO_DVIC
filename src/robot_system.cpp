@@ -2862,6 +2862,33 @@ void Robot_system::compute_motor_autocommande()
     }
 }
 
+void Robot_system::compute_motor_autocommandeNico()
+{
+    /*
+        DESCRIPTION: this function will compute the new commande for motor
+            based on the angle with the target keypoint.
+    */
+
+    double angle_ORIENTATION = robot_position.pixel.y_pixel;
+    double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
+
+    double distance_deg      = target_keypoint->target_angle;
+
+    /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
+    like speed or area type. */
+    double dynamic_threshold = 10;
+
+    const double V = 255;// desired velocity    
+    const double K = 0.5;// turning gain [0.5:1]    
+    /* target_angle variable is good but is it between 0 and 180 degres.
+    We don't know if we need to go left or right so we recompute a version on target angle
+    between -180 and 180.*/
+    double alpha = distance_deg * M_PI / 180;
+    int rightspeed = (int)(V*(cos(alpha)+K*(sin(alpha))));
+    int leftspeed = (int)(V*(cos(alpha)-K*(sin(alpha))));
+    robot_control.manual_new_commandNico(leftspeed,rightspeed);
+}
+
 void Robot_system::secure_command_transmission()
 {
     /*

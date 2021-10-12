@@ -241,6 +241,28 @@ struct Robot_control
         return servo.SL != new_command_send.servo.SL || \
                servo.SR != new_command_send.servo.SR;
     }
+    void manual_new_commandNico(int left, int right)
+    {
+        /*
+            DESC:
+                takes a speed for left and right sides.
+            INPUT:
+                left: left speed [-255:255]
+                right: right speed [-255:255]
+        */
+        motor.m1L = left;
+        direction.m1L_s = left<0;
+        motor.m1R = right;
+        direction.m1R_s = right<0;
+        motor.m2L = left;
+        direction.m2L_s = left<0;
+        motor.m2R = right;
+        direction.m2R_s = right<0;
+        motor.m3L = left;
+        direction.m3L_s = left<0;
+        motor.m3R = right;
+        direction.m3R_s = right<0;
+    }
     void manual_new_command(int command, int speed_lvl, int origin)
     {
         /*
