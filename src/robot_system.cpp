@@ -2865,27 +2865,37 @@ void Robot_system::compute_motor_autocommande()
 void Robot_system::compute_motor_autocommandeNico()
 {
     /*
-        DESCRIPTION: this function will compute the new commande for motor
-            based on the angle with the target keypoint.
+        DESCRIPTION: http://faculty.salina.k-state.edu/tim/robot_prog/MobileBot/Steering/pointFwd.html
     */
-
     double angle_ORIENTATION = robot_position.pixel.y_pixel;
     double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
-
-    double distance_deg      = target_keypoint->target_angle;
-
     /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
     like speed or area type. */
-    double dynamic_threshold = 10;
-
-    const double V = 255;// desired velocity    
-    const double K = 0.5;// turning gain [0.5:1]    
+    const double V = 350;// desired velocity, u can make V depend on distance to target to slow down when close
+    const double K = 0.6;// turning gain [0.5:1]
+    double F = 1; // influence of straight line component
+    const int back_angle = M_PI_4; // angle to consider that we are moving backwards in rad
+    const int stall_pwm = 50;
+    const int unstall_pwm = 128;
     /* target_angle variable is good but is it between 0 and 180 degres.
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
-    double alpha = distance_deg * M_PI / 180;
-    int rightspeed = (int)(V*(cos(alpha)+K*(sin(alpha))));
-    int leftspeed = (int)(V*(cos(alpha)-K*(sin(alpha))));
+    double alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
+    alpha = ((alpha + M_PI)%(2*M_PI) - M_PI) //[-PI:PI]
+    // we don't have sensors behind so don't move backwards
+    if (abs(alpha)>back_angle){
+        F = 0;
+    }
+    int rightspeed = (int)(V*(F*cos(alpha)+K*sin(alpha)));
+    int leftspeed = (int)(V*(F*cos(alpha)-K*sin(alpha)));
+    //make sure the robot will move
+    if(abs(rightspeed)<stall_pwm){
+        rightspeed = unstall_pwm * rightspeed/abs(rightspeed)
+    }
+    if(abs(leftspeed)<stall_pwm){
+        leftspeed = unstall_pwm * leftspeed/abs(leftspeed)
+    }
+    // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
 }
 

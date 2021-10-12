@@ -250,17 +250,25 @@ struct Robot_control
                 left: left speed [-255:255]
                 right: right speed [-255:255]
         */
-        motor.m1L = left;
+        // clamp the values
+        if(abs(left)>255){
+            left = 255 * left/abs(left)
+        }
+        if(abs(right)>255){
+            right = 255 * right/abs(right)
+        }
+        // write to motors
+        motor.m1L = left<0?left:left*-1;
         direction.m1L_s = left<0;
-        motor.m1R = right;
+        motor.m1R = right<0?right:right*-1;
         direction.m1R_s = right<0;
-        motor.m2L = left;
+        motor.m2L = left<0?left:left*-1;
         direction.m2L_s = left<0;
-        motor.m2R = right;
+        motor.m2R = right<0?right:right*-1;
         direction.m2R_s = right<0;
-        motor.m3L = left;
+        motor.m3L = left<0?left:left*-1;
         direction.m3L_s = left<0;
-        motor.m3R = right;
+        motor.m3R = right<0?right:right*-1;
         direction.m3R_s = right<0;
     }
     void manual_new_command(int command, int speed_lvl, int origin)
