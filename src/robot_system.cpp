@@ -2828,14 +2828,14 @@ void Robot_system::compute_motor_autocommande()
             if(angle_RKP - angle_ORIENTATION <= 180)
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(6, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
                 else { robot_control.manual_new_command(6, 2, 1);}
 
             }
             else
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(5, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
                 else { robot_control.manual_new_command(5, 2, 1);}
             }
         }
@@ -2844,13 +2844,13 @@ void Robot_system::compute_motor_autocommande()
             if(angle_ORIENTATION - angle_RKP <= 180)
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(5, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
                 else { robot_control.manual_new_command(5, 2, 1);}
             }
             else
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(6, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
                 else { robot_control.manual_new_command(6, 2, 1);};
             }
         }
