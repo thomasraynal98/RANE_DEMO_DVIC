@@ -212,6 +212,7 @@ class Robot_system
         // FONCTION MOTOR.
         void secure_command_transmission();
         void compute_motor_autocommande();
+        void compute_motor_autocommandeNico();
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

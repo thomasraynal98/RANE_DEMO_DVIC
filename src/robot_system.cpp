@@ -479,7 +479,8 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
             else
             { 
-                compute_motor_autocommande();
+                // compute_motor_autocommande();
+                compute_motor_autocommandeNico();
 
                 /* Introduce the ultrasonsensor. If condition are together,
                 maybe this part will compute a new motor autocommande. */
@@ -2828,14 +2829,14 @@ void Robot_system::compute_motor_autocommande()
             if(angle_RKP - angle_ORIENTATION <= 180)
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(6, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
                 else { robot_control.manual_new_command(6, 2, 1);}
 
             }
             else
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(5, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
                 else { robot_control.manual_new_command(5, 2, 1);}
             }
         }
@@ -2844,13 +2845,13 @@ void Robot_system::compute_motor_autocommande()
             if(angle_ORIENTATION - angle_RKP <= 180)
             {
                 // Left rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(5, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(3, 1, 1);}
                 else { robot_control.manual_new_command(5, 2, 1);}
             }
             else
             {
                 // Right rotation or smooth.
-                if(distance_deg > 20) { robot_control.manual_new_command(6, 2, 1);}
+                if(distance_deg > 20) { robot_control.manual_new_command(4, 1, 1);}
                 else { robot_control.manual_new_command(6, 2, 1);};
             }
         }
@@ -2860,6 +2861,43 @@ void Robot_system::compute_motor_autocommande()
         // Forward.
         robot_control.manual_new_command(1, 2, 1);
     }
+}
+
+void Robot_system::compute_motor_autocommandeNico()
+{
+    /*
+        DESCRIPTION: http://faculty.salina.k-state.edu/tim/robot_prog/MobileBot/Steering/pointFwd.html
+    */
+    double angle_ORIENTATION = robot_position.pixel.y_pixel;
+    double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
+    /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
+    like speed or area type. */
+    const double V = 350;// desired velocity, u can make V depend on distance to target to slow down when close
+    const double K = 0.6;// turning gain [0.5:1]
+    double F = 1; // influence of straight line component
+    const int back_angle = M_PI_4; // angle to consider that we are moving backwards in rad
+    const int stall_pwm = 50;
+    const int unstall_pwm = 128;
+    /* target_angle variable is good but is it between 0 and 180 degres.
+    We don't know if we need to go left or right so we recompute a version on target angle
+    between -180 and 180.*/
+    double alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
+    alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
+    // we don't have sensors behind so don't move backwards
+    if (abs(alpha)>back_angle){
+        F = 0;
+    }
+    int rightspeed = (int)(V*(F*cos(alpha)+K*sin(alpha)));
+    int leftspeed = (int)(V*(F*cos(alpha)-K*sin(alpha)));
+    //make sure the robot will move
+    if(abs(rightspeed)<stall_pwm){
+        rightspeed = unstall_pwm * rightspeed/abs(rightspeed);
+    }
+    if(abs(leftspeed)<stall_pwm){
+        leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
+    }
+    // send to robot
+    robot_control.manual_new_commandNico(leftspeed,rightspeed);
 }
 
 void Robot_system::secure_command_transmission()
