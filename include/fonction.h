@@ -252,10 +252,10 @@ struct Robot_control
         */
         // clamp the values
         if(abs(left)>255){
-            left = 255 * left/abs(left)
+            left = 255 * left/abs(left);
         }
         if(abs(right)>255){
-            right = 255 * right/abs(right)
+            right = 255 * right/abs(right);
         }
         // write to motors
         motor.m1L = left<0?left:left*-1;

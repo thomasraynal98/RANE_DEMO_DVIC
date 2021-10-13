@@ -479,7 +479,8 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
             else
             { 
-                compute_motor_autocommande();
+                // compute_motor_autocommande();
+                compute_motor_autocommandeNico();
 
                 /* Introduce the ultrasonsensor. If condition are together,
                 maybe this part will compute a new motor autocommande. */
@@ -2881,7 +2882,7 @@ void Robot_system::compute_motor_autocommandeNico()
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
     double alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
-    alpha = ((alpha + M_PI)%(2*M_PI) - M_PI) //[-PI:PI]
+    alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
     // we don't have sensors behind so don't move backwards
     if (abs(alpha)>back_angle){
         F = 0;
@@ -2890,10 +2891,10 @@ void Robot_system::compute_motor_autocommandeNico()
     int leftspeed = (int)(V*(F*cos(alpha)-K*sin(alpha)));
     //make sure the robot will move
     if(abs(rightspeed)<stall_pwm){
-        rightspeed = unstall_pwm * rightspeed/abs(rightspeed)
+        rightspeed = unstall_pwm * rightspeed/abs(rightspeed);
     }
     if(abs(leftspeed)<stall_pwm){
-        leftspeed = unstall_pwm * leftspeed/abs(leftspeed)
+        leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
     }
     // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
