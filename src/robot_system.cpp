@@ -1466,7 +1466,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
-    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
+    //thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
 
     /* Join all thread. */
     thread_1_localisation.join();
@@ -1477,7 +1477,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
-    thread_9_thread_ANALYSER.join();
+    //thread_9_thread_ANALYSER.join();
 }
 
 void Robot_system::init_socketio()
