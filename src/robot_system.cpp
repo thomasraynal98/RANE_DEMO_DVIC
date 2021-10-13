@@ -2872,12 +2872,12 @@ void Robot_system::compute_motor_autocommandeNico()
     double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
     /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
     like speed or area type. */
-    const double V = 350;// desired velocity, u can make V depend on distance to target to slow down when close
-    const double K = 0.6;// turning gain [0.5:1]
+    const double V = 150;// desired velocity, u can make V depend on distance to target to slow down when close
+    const double K = 0.3;// turning gain [0.5:1]
     double F = 1; // influence of straight line component
     const int back_angle = M_PI_4; // angle to consider that we are moving backwards in rad
-    const int stall_pwm = 50;
-    const int unstall_pwm = 128;
+    const int stall_pwm = 10;
+    const int unstall_pwm = 10;
     /* target_angle variable is good but is it between 0 and 180 degres.
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
@@ -2896,6 +2896,7 @@ void Robot_system::compute_motor_autocommandeNico()
     if(abs(leftspeed)<stall_pwm){
         leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
     }
+    std::cout << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
     // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
 }
