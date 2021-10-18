@@ -254,7 +254,11 @@ void Robot_system::send_debug_data()
     sio::message::ptr data_debug_robot = sio::object_message::create();
 
     /* path and target keypoint. */
-    data_debug_robot->get_map()["keypoints_path"] = generate_keypoint_vector_message();
+    data_debug_robot->get_map()["keypoint_path"] = generate_keypoint_vector_message();
+
+    /* current target keypoint. */
+    data_debug_robot->get_map()["target_keypoints_x"] = sio::int_message::create(target_keypoint->coordinate.first);
+    data_debug_robot->get_map()["target_keypoints_y"] = sio::int_message::create(target_keypoint->coordinate.second);
 
     /* which process send command motor. */
     data_debug_robot->get_map()["origin_command"] = sio::int_message::create(robot_control.origin_commande);
@@ -484,16 +488,16 @@ void Robot_system::thread_COMMANDE(int frequency)
 
                 /* Introduce the ultrasonsensor. If condition are together,
                 maybe this part will compute a new motor autocommande. */
-                autonomous_mode_ultrasonic_integration();
+                // autonomous_mode_ultrasonic_integration();
 
-                /* Check if we are in security mode since enought time. */
-                if(autonomous_mode_safety_stop_checking())
-                {   
-                    // TODO :
-                    /* If we are not lost. We are probably in front of an obstacle
-                    so we will recompute a new path. */
-                    recompute_new_path();
-                } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
+                // /* Check if we are in security mode since enought time. */
+                // if(autonomous_mode_safety_stop_checking())
+                // {   
+                //     // TODO :
+                //     /* If we are not lost. We are probably in front of an obstacle
+                //     so we will recompute a new path. */
+                //     recompute_new_path();
+                // } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
             }       
         }
         if(robot_general_state == Robot_state().home)
@@ -1000,6 +1004,7 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         /* Send data to server. */
         robot_timer.duration_tX = std::chrono::high_resolution_clock::now() - robot_timer.tp_X;
         send_data_to_server();
+        send_debug_data();
 
         // std::cout << "[THREAD-8]\n";
     }
@@ -1245,6 +1250,23 @@ bool Robot_system::init_basic_data()
     fsSettings2["Param_localisation"] >> parametre.map.localisation;
     fsSettings2["Param_id_map"] >> parametre.map.id_map;
     fsSettings2.release();
+
+    /* Read navigation parameter. */
+    cv::FileStorage fsSettings3(parametre.filePath.path_to_navigation_param, cv::FileStorage::READ);
+    if(!fsSettings3.isOpened())
+    {
+        std::cerr << "ERROR: Wrong path to settings navigation info." << std::endl;
+        return false;
+    }
+
+    // TODO :
+    fsSettings3["Param_K"] >> parametre.paramNavigation.K;
+    fsSettings3["Param_V"] >> parametre.paramNavigation.V;
+    fsSettings3["Param_F"] >> parametre.paramNavigation.F;
+    fsSettings3["Param_back_angle"] >> parametre.paramNavigation.back_angle;
+    fsSettings3["Param_stall_pwm"] >> parametre.paramNavigation.stall_pwm;
+    fsSettings3["Param_unstall_pwm"] >> parametre.paramNavigation.unstall_pwm;
+    fsSettings3.release();
 
     return true;
 }
@@ -2872,21 +2894,23 @@ void Robot_system::compute_motor_autocommandeNico()
     double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
     /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
     like speed or area type. */
-    const double V = 150;// desired velocity, u can make V depend on distance to target to slow down when close
-    const double K = 0.3;// turning gain [0.5:1]
-    double F = 1; // influence of straight line component
-    const int back_angle = M_PI_4; // angle to consider that we are moving backwards in rad
-    const int stall_pwm = 10;
-    const int unstall_pwm = 10;
+    // TODO: influencer par distance de validation
+    const double V = parametre.paramNavigation.V;// desired velocity, u can make V depend on distance to target to slow down when close
+    const double K = parametre.paramNavigation.K;// turning gain [0.5:1]
+    double F = parametre.paramNavigation.F; // influence of straight line component
+    const int back_angle = parametre.paramNavigation.back_angle; // angle to consider that we are moving backwards in rad
+    const int stall_pwm = parametre.paramNavigation.stall_pwm;
+    const int unstall_pwm = parametre.paramNavigation.unstall_pwm;
     /* target_angle variable is good but is it between 0 and 180 degres.
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
     double alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
+    alpha += M_PI;
     alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
     // we don't have sensors behind so don't move backwards
-    if (abs(alpha)>back_angle){
-        F = 0;
-    }
+    // if (abs(alpha)>back_angle){
+    //     F = 0;
+    // }
     int rightspeed = (int)(V*(F*cos(alpha)+K*sin(alpha)));
     int leftspeed = (int)(V*(F*cos(alpha)-K*sin(alpha)));
     //make sure the robot will move
@@ -2896,7 +2920,7 @@ void Robot_system::compute_motor_autocommandeNico()
     if(abs(leftspeed)<stall_pwm){
         leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
     }
-    std::cout << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
+    std::cout <<  angle_RKP << " " << angle_ORIENTATION << " " << alpha << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
     // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
 }

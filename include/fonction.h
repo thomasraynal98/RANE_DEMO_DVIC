@@ -792,7 +792,18 @@ struct System_param{
         std::string path_to_current_session{"../data_robot/Navigation/map.session"};
         std::string path_to_weighted_map{"../data_robot/Navigation/map.png"};
         std::string path_to_identification{"../data_robot/Identification/robot_information.yaml"};
+        std::string path_to_navigation_param{"../data_robot/Navigation/parameter.yaml"};
     }filePath;
+
+    struct ParamNavigation
+    {
+        double K{0};
+        double V{0};
+        double F{0};
+        double back_angle{0};
+        double stall_pwm{0};
+        double unstall_pwm{0};
+    }paramNavigation;
 
     struct SelectTargetKeypoint
     {
