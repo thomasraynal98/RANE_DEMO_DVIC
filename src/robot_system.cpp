@@ -1133,13 +1133,11 @@ bool Robot_system::init_basic_data()
         std::cerr << "ERROR: Wrong path to settings identification." << std::endl;
         return false;
     }
-
     fsSettings["Param_modele"] >> parametre.identity.modele;
     fsSettings["Param_version"] >> parametre.identity.version;
     fsSettings["Param_matricule"] >> parametre.identity.matricule;
     fsSettings["Param_exploitation"] >> parametre.identity.exploitation;
     fsSettings["Param_prenom"] >> parametre.identity.prenom;
-
     fsSettings.release();
 
     /* Read navigation map information. */
@@ -1149,8 +1147,6 @@ bool Robot_system::init_basic_data()
         std::cerr << "ERROR: Wrong path to settings navigation info." << std::endl;
         return false;
     }
-
-    // TODO :
     std::string tempo;
     fsSettings2["Param_localisation"] >> parametre.map.localisation;
     fsSettings2["Param_id_map"] >> parametre.map.id_map;
@@ -1163,8 +1159,6 @@ bool Robot_system::init_basic_data()
         std::cerr << "ERROR: Wrong path to settings navigation info." << std::endl;
         return false;
     }
-
-    // TODO :
     fsSettings3["Param_K"] >> parametre.paramNavigation.K;
     fsSettings3["Param_V"] >> parametre.paramNavigation.V;
     fsSettings3["Param_F"] >> parametre.paramNavigation.F;
@@ -2703,17 +2697,6 @@ void Robot_system::add_energy_sensor(cv::Mat image)
             1.0,
             CV_RGB(0, 0, 0), //font color
             2);
-}
-
-cv::Scalar Robot_system::get_color_ultrasonic(double value)
-{
-    if(value == 0) return cv::Scalar( 255, 255, 255);
-    else{
-        if(value < 100) return cv::Scalar( 0, 0, 255);
-        if(value < 500) return cv::Scalar( 0, 165, 255);
-        if(value < 800) return cv::Scalar( 0, 255, 255);
-        return cv::Scalar( 0, 255, 0);
-    }
 }
 
 void Robot_system::debug_autonav(cv::Mat image)

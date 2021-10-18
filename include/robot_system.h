@@ -210,7 +210,6 @@ class Robot_system
         void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
         void debug_add_path_keypoint(cv::Mat copy_debug_visual_map);
         void add_lines_sensor(cv::Mat image);
-        cv::Scalar get_color_ultrasonic(double value);
         void add_energy_sensor(cv::Mat image);
         void debug_message_server();
         void debug_init_debug_map();
