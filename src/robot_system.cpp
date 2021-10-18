@@ -224,13 +224,6 @@ void Robot_system::send_data_to_server()
     data_robot->get_map()["fan_power"]       = sio::int_message::create(fan_power);
 
     /* Sensor information. */
-    data_robot->get_map()["ulF0"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF0);
-    data_robot->get_map()["ulF1"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF1);
-    data_robot->get_map()["ulF2"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF2);
-    data_robot->get_map()["ulF3"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulF3);
-    data_robot->get_map()["ulB0"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB0);
-    data_robot->get_map()["ulB1"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB1);
-    data_robot->get_map()["ulB2"]            = sio::double_message::create(robot_sensor_data.ultrasonic.ulB2);
     data_robot->get_map()["voltage"]         = sio::double_message::create(robot_sensor_data.energy.current);
     data_robot->get_map()["current"]         = sio::double_message::create(robot_sensor_data.energy.voltage);
     
@@ -254,7 +247,7 @@ void Robot_system::send_debug_data()
     sio::message::ptr data_debug_robot = sio::object_message::create();
 
     /* path and target keypoint. */
-    data_debug_robot->get_map()["keypoint_path"] = generate_keypoint_vector_message();
+    data_debug_robot->get_map()["keypoints_path"] = generate_keypoint_vector_message();
 
     /* current target keypoint. */
     data_debug_robot->get_map()["target_keypoints_x"] = sio::int_message::create(target_keypoint->coordinate.first);
@@ -367,6 +360,8 @@ void Robot_system::thread_COMMANDE(int frequency)
         next                       += std::chrono::milliseconds((int)time_of_loop);
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
+
+        /* Statue print. */
         std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
         "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 
@@ -462,7 +457,6 @@ void Robot_system::thread_COMMANDE(int frequency)
             // TODO : when get data from API change autonomous_nav_option to 0. (not ici)
             
             /* Select current target keypoint and check if we reach them. */
-            check_stKP_mode();
             select_target_keypoint();
             cellIsReach();
 
@@ -485,19 +479,6 @@ void Robot_system::thread_COMMANDE(int frequency)
             { 
                 // compute_motor_autocommande();
                 compute_motor_autocommandeNico();
-
-                /* Introduce the ultrasonsensor. If condition are together,
-                maybe this part will compute a new motor autocommande. */
-                // autonomous_mode_ultrasonic_integration();
-
-                // /* Check if we are in security mode since enought time. */
-                // if(autonomous_mode_safety_stop_checking())
-                // {   
-                //     // TODO :
-                //     /* If we are not lost. We are probably in front of an obstacle
-                //     so we will recompute a new path. */
-                //     recompute_new_path();
-                // } else{ robot_sensor_data.detection_analyse.lines.clear(); robot_sensor_data.detection_analyse.obstacles.clear();}
             }       
         }
         if(robot_general_state == Robot_state().home)
@@ -508,10 +489,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                     mode. So when autonomous_nav reaches the destination point
                     it switches directly to approach mode.
             */
-
-            // TODO : when get data from API change autonomous_nav_option to 1.
-
-            home_mode_process();
         }
         if(robot_general_state == Robot_state().approach)
         {
@@ -522,61 +499,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                     and QR code detection process. During this process, 
                     the slam navigation process from slamcore is not use.
             */
-
-            /* check if we are in good orientation. */
-            if(phase_approach == -1) { approach_mode_check_orientation();}
-                
-            if(phase_approach != -1 && approach_orientation_isGood)
-            {
-                if(landing_attempt < 4)
-                {
-                    /* be shure than we detect QR code on the wall. */
-                    if(camera_data.qr_var.qrIsDetected)
-                    {
-                        approach_mode_motor_commande();
-                    }
-                    else
-                    {
-                       if(phase_approach == 1)
-                       {
-                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_1;
-                           if((int)robot_timer.duration_t.count() > robot_timer.thres_1)
-                           {
-                               approach_mode_try_found_qr();
-                           }
-                       }
-                       if(phase_approach == 2)
-                       {
-                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_2;
-                           if((int)robot_timer.duration_t.count() > robot_timer.thres_2)
-                           {
-                               /* we are slowly move forward since robot_timer.thres_2 ms. 
-                               now move back. */
-                               approach_mode_move_back_to_retry();
-                           }
-                       }
-                       if(phase_approach == 3)
-                       {
-                           robot_timer.duration_t = std::chrono::high_resolution_clock::now() - robot_timer.tp_3;
-                           if((int)robot_timer.duration_t.count() > robot_timer.thres_3)
-                           {
-                               /* we finish to move backward to retry a new detection.
-                               recompute path to home and repeate again. */
-                               approach_mode_repeat_procedure();
-                           }
-                       }
-                    }
-
-                    /* Ultrason integration for landing and safety. */
-                    approach_mode_ultrasonic_integration();
-                }
-                else
-                {
-                    /* we pass the max number of attemp. */
-                    change_mode(Robot_state().warning);
-                    std::cout << "[WARNING] max landing attempt passed." << std::endl;
-                }
-            }
         }
         if(robot_general_state == Robot_state().manual)
         {
@@ -592,9 +514,6 @@ void Robot_system::thread_COMMANDE(int frequency)
 
             /* Important function to call when you add new command. */
             secure_command_transmission();
-
-            /* Security check. */
-            // manual_mode_security_sensor();
         }
         if(robot_general_state == Robot_state().warning)
         {
@@ -621,9 +540,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                 MODE DESCRIPTION:
                     This mode is automatly call when slam process is lost.
             */
-
-            robot_control.manual_new_command(0, 3, 6);
-            // lost_mode_process();
         }
         if(robot_general_state == Robot_state().takeoff)
         {
@@ -632,8 +548,6 @@ void Robot_system::thread_COMMANDE(int frequency)
                     This special mode is call when robot it's charging on this
                     base. It allow robot to go backward.
             */
-
-            takeoff_mode_process();
         }
         if(robot_general_state == Robot_state().charging)
         {
@@ -897,20 +811,6 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
                                 robot_control_last_send.change_servo(robot_control);
                             }
                         }
-
-                        // int de categorie = 2 : sensor message.
-                        if(std::stold(data_brute[0],&sz) == 2 && data_brute.size() == 10)
-                        {
-                            robot_sensor_data.ultrasonic.ulF0 = std::stold(data_brute[1],&sz);
-                            robot_sensor_data.ultrasonic.ulF1 = std::stold(data_brute[2],&sz);
-                            robot_sensor_data.ultrasonic.ulF2 = std::stold(data_brute[3],&sz);
-                            robot_sensor_data.ultrasonic.ulF3 = std::stold(data_brute[4],&sz);
-                            robot_sensor_data.ultrasonic.ulB0 = std::stold(data_brute[5],&sz);
-                            robot_sensor_data.ultrasonic.ulB1 = std::stold(data_brute[6],&sz);
-                            robot_sensor_data.ultrasonic.ulB2 = std::stold(data_brute[7],&sz);
-                            robot_sensor_data.energy.voltage  = std::stold(data_brute[8],&sz);
-                            robot_sensor_data.energy.current  = std::stold(data_brute[9],&sz);
-                        }
                     }
                     catch(...)
                     {}                    
@@ -926,6 +826,7 @@ void Robot_system::thread_LISTENER(int frequency, LibSerial::SerialPort** serial
 
 void Robot_system::thread_SERVER_LISTEN(int frequency)
 {
+
     /*
         DESCRIPTION: this thread will listen the server and the different order.
     */
@@ -956,20 +857,24 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // TODO: NO EXPLICATION REQUIRED.
         // destination_point.first  = 96;
         // destination_point.second = 76;
-        std::cout << "READ DESTINATION>";
-        int rien;
-        std::cin >> rien;
-        destination_point.first  = 1032;
-        destination_point.second = 793;
-        change_mode(Robot_state().compute_nav);
+
+        // std::cout << "READ DESTINATION>";
+        // int rien;
+        // std::cin >> rien;
+        // destination_point.first  = 1032;
+        // destination_point.second = 793;
+        // change_mode(Robot_state().compute_nav);
+
         // std::cout << robot_general_state << std::endl;
         // robot_control.manual_commande_message = rien;
         // robot_general_state = Robot_state().manual;
     }
+
 }
 
 void Robot_system::thread_SERVER_SPEAKER(int frequency)
 {
+
     /*
         DESCRIPTION: this thread will speak to the server about all sensor and
             data from the robot. Is
@@ -1004,7 +909,7 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
         /* Send data to server. */
         robot_timer.duration_tX = std::chrono::high_resolution_clock::now() - robot_timer.tp_X;
         send_data_to_server();
-        send_debug_data();
+        //  send_debug_data();
 
         // std::cout << "[THREAD-8]\n";
     }
@@ -1779,13 +1684,6 @@ void Robot_system::from_3DW_to_2DM()
     // TRANSFORMATION
     robot_position.pixel.ti = (int)((robot_position.transformation.x +  30.3)  / 0.05);
     robot_position.pixel.tj = (int)((17.50 - robot_position.transformation.y)  / 0.05);
-
-    /* compute position center of sensor in pixel coordinate. */
-    double d   = (robot_sensor_data.architecture.distance_centraux/2)/50; 
-    robot_position.transformation.RL_sensor_pose.first  = (int)(robot_position.pixel.i+cos((robot_position.pixel.y_pixel*M_PI/180) + M_PI/2)*d);
-    robot_position.transformation.RL_sensor_pose.second = (int)(robot_position.pixel.j+sin((robot_position.pixel.y_pixel*M_PI/180) + M_PI/2)*d);
-    robot_position.transformation.FL_sensor_pose.first  = (int)(robot_position.pixel.i+cos((robot_position.pixel.y_pixel*M_PI/180) - M_PI/2)*d);
-    robot_position.transformation.FL_sensor_pose.second = (int)(robot_position.pixel.j+sin((robot_position.pixel.y_pixel*M_PI/180) - M_PI/2)*d);
 }
 
 Pair Robot_system::from_3DW_to_2DM2(double x, double y)
@@ -2189,131 +2087,6 @@ bool Robot_system::isInVect(std::vector<int> vector, int stuf)
     return false;
 }
 
-bool Robot_system::recompute_new_path()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMANDE when the 
-            robot it's block by obstacle on this road and the target_angle
-            is under a threshold.
-    */
-
-    /* copie map_weighted in map_weighted_obstacle. */
-    map_weighted_obstacle = map_weighted.clone();
-
-    /* 
-        generate position in pixel of all obstacle, and generate the 'line' that
-        represent the obstacle. 
-        'line' = is represent by 2 points where obstacle it's center of line.
-    */
-    std::vector<Pair> obstacle_pixel;
-    Pair my_obstacle(-1,-1);
-    Pair nada_obstacle(-1,-1);
-    Obstacle_lines line;
-    int line_size = 6;
-    robot_sensor_data.detection_analyse.lines.clear();
-
-    if(robot_sensor_data.ultra_obstacle.obsulF0)
-    {
-        my_obstacle.first = (int)(robot_position.transformation.FL_sensor_pose.first+cos(((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF0/50));
-        my_obstacle.second = (int)(robot_position.transformation.FL_sensor_pose.second+sin(((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF0/50));
-        obstacle_pixel.push_back(my_obstacle); 
-
-        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
-        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
-        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
-        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel-robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
-        robot_sensor_data.detection_analyse.lines.push_back(line);
-
-    } else{ obstacle_pixel.push_back(nada_obstacle);}
-    if(robot_sensor_data.ultra_obstacle.obsulF1)
-    {
-        my_obstacle.first = (int)(robot_position.transformation.FL_sensor_pose.first+cos(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF1/50));
-        my_obstacle.second = (int)(robot_position.transformation.FL_sensor_pose.second+sin(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF1/50));
-        obstacle_pixel.push_back(my_obstacle); 
-
-        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
-        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
-        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
-        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
-        robot_sensor_data.detection_analyse.lines.push_back(line);
-
-    } else{ obstacle_pixel.push_back(nada_obstacle);}
-    if(robot_sensor_data.ultra_obstacle.obsulF2)
-    {
-        my_obstacle.first = (int)(robot_position.transformation.RL_sensor_pose.first+cos(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF2/50));
-        my_obstacle.second = (int)(robot_position.transformation.RL_sensor_pose.second+sin(((robot_position.pixel.y_pixel)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF2/50));
-        obstacle_pixel.push_back(my_obstacle);   
-
-        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
-        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180-(M_PI/2))*line_size);
-        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
-        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel)*M_PI/180+(M_PI/2))*line_size);
-        robot_sensor_data.detection_analyse.lines.push_back(line);
-
-    } else{ obstacle_pixel.push_back(nada_obstacle);}
-    if(robot_sensor_data.ultra_obstacle.obsulF3)
-    {
-        my_obstacle.first = (int)(robot_position.transformation.RL_sensor_pose.first+cos(((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF3/50));
-        my_obstacle.second = (int)(robot_position.transformation.RL_sensor_pose.second+sin(((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180))*(robot_sensor_data.ultrasonic.ulF3/50));
-        obstacle_pixel.push_back(my_obstacle);
-
-        line.first.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
-        line.first.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180-(M_PI/2))*line_size);
-        line.second.first =  (int)(my_obstacle.first+cos((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
-        line.second.second =  (int)(my_obstacle.second+sin((robot_position.pixel.y_pixel+robot_sensor_data.architecture.angle_ultrasensor)*M_PI/180+(M_PI/2))*line_size);
-        robot_sensor_data.detection_analyse.lines.push_back(line);
-
-    } else{ obstacle_pixel.push_back(nada_obstacle);}
-
-    robot_sensor_data.detection_analyse.obstacles = obstacle_pixel;
-
-    /* draw obstacle information on the grayscale map map_weighted_obstacle. */
-    for(auto line : robot_sensor_data.detection_analyse.lines)
-    {
-        // try_avoid area next to object.
-        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(200), 13, cv::FILLED);
-        // no go area.
-        cv::line(map_weighted_obstacle, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(50), 6, cv::FILLED);
-    }
-
-    /* Create Pair object from our position. */
-    Pair current_pose(robot_position.pixel.ti , robot_position.pixel.tj);
-
-    /* Block the robot during this process. */
-    robot_control.manual_new_command(0, 3, 11);
-    secure_command_transmission();
-
-    /* run a* on this new map_weighted_obstacle. */
-    if(aStarSearch(map_weighted_obstacle, current_pose, destination_point))
-    {   
-        /* save last obstacle position in memory. */
-        for(auto obstacle : robot_sensor_data.detection_analyse.obstacles)
-        {
-            // TODO : for the moment we don't care about witch one. but after take the far away.
-            if(obstacle.first != -1 && obstacle.second != -1)
-            {robot_sensor_data.detection_analyse.save_last_obstacle(obstacle.first, obstacle.second);}
-        }
-
-        /* to re-force 2500 ms wait. */
-        robot_sensor_data.detection_analyse.isSecurityStop = false;
-
-        /* Succes so get target keypoint. */
-        parametre.param_stKP.mode(1);
-        select_target_keypoint();
-
-        /* Check if we reach it. */
-        cellIsReach();
-
-        /* Change mode. */
-        change_mode(Robot_state().autonomous_nav);
-    }
-    else
-    {
-        /* Change mode. */
-        change_mode(Robot_state().warning);
-    }
-}
-
 // FONCTION MODE.
 
 void Robot_system::manual_mode_process()
@@ -2332,184 +2105,6 @@ void Robot_system::manual_mode_process()
     if(robot_control.manual_commande_message == 6)  { robot_control.manual_new_command(6, 2, 0);}
     if(robot_control.manual_commande_message == 7)  { robot_control.manual_new_command(7, 3, 0);}
     if(robot_control.manual_commande_message == 8)  { robot_control.manual_new_command(8, 3, 0);}
-}
-
-void Robot_system::manual_mode_security_sensor()
-{
-    /*
-        DESCRIPTION: this function is use in thread_command in manual mode
-            and will shake if the path is clear for user command.
-    */
-
-    auto obs_detect = robot_sensor_data.proximity_sensor_detection(200.0, 150.0, thread_2_hz);
-
-    if(robot_control.goForward && (isInVect(obs_detect, 0) || isInVect(obs_detect, 1) || \
-    isInVect(obs_detect, 2) || isInVect(obs_detect, 3)))
-    {
-        /* want to go forward but is blocked. */
-        std::cout << "[AUTO MANUAL STOP]" << std::endl;
-        robot_control.manual_new_command(0, 3, 5);
-        robot_control.compute_message_microA();
-        robot_control.compute_message_microB();
-        robot_control.isTransmitA = false;
-        robot_control.isTransmitB = false;
-    }
-    if(robot_control.goBackward && (isInVect(obs_detect, 4) || isInVect(obs_detect, 5) || \
-    isInVect(obs_detect, 6)))
-    {
-        /* want to go backward but is blocked. */
-        std::cout << "[AUTO MANUAL STOP]" << std::endl;
-        robot_control.manual_new_command(0, 3, 5);
-        robot_control.compute_message_microA();
-        robot_control.compute_message_microB();
-        robot_control.isTransmitA = false;
-        robot_control.isTransmitB = false;
-    }
-}
-
-void Robot_system::autonomous_mode_ultrasonic_integration()
-{
-    /*
-        DESCRIPTION: this function is call in thread_command when we are in
-            autonomous mode and integrate ultrasonic sensor data to the 
-            general algorythme process and add the wall follow process,
-            corridor mode and safety obstacle algorythme.
-    */
-
-    /* angle_threshold is a data use in corridor process validation, if 
-    the target_angle of target_keypoint is bellow this threshold, we 
-    can have corridor mode. */
-    double angle_threshold = 40.0;  //en deg.
-    double diff_threshold = 0.0;    //difference threshold between two ultrason data.
-
-    /* Update proximity sensor information. */
-    robot_sensor_data.proximity_sensor_detection(300.0, 600.0, thread_2_hz);
-
-    /* Detect if we are in CORIDOR option. */
-    if(robot_sensor_data.detect_corridor_situation() && \
-    (target_keypoint->target_angle <= angle_threshold))
-    {
-        /* Check the current CORRIDOR option configuration. */
-        int cfg_corridor = robot_sensor_data.get_corridor_configuration();
-
-        /* Front configuration. */
-        if(cfg_corridor == 0)
-        {
-            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold< robot_sensor_data.ultrasonic.ulF3)
-            {
-                // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 1, 2);
-            }
-            else if (robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
-            {
-                // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 1, 2);
-            }
-        }
-
-        /* back configuration.  */
-        if(cfg_corridor == 1)
-        {
-            // no code required.
-        }
-        
-        /* Left configuration.  */
-        if(cfg_corridor == 2)
-        {
-            if(robot_sensor_data.ultrasonic.ulF0+diff_threshold < robot_sensor_data.ultrasonic.ulB0)
-            {
-                // Are currently going to the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 1, 2);
-            }
-            else if (robot_sensor_data.ultrasonic.ulB0+diff_threshold < robot_sensor_data.ultrasonic.ulF0)
-            {
-                // Are currently moving away the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 1, 2);
-            }
-        }
-        
-        /* Right configuration. */
-        if(cfg_corridor == 3)
-        {
-            if(robot_sensor_data.ultrasonic.ulF3+diff_threshold < robot_sensor_data.ultrasonic.ulB2)
-            {
-                // Are currently going to the wall. Smooth turn left.
-                robot_control.manual_new_command(5, 1, 2);
-            }
-            else if (robot_sensor_data.ultrasonic.ulB2+diff_threshold < robot_sensor_data.ultrasonic.ulF3)
-            {
-                // Are currently moving away the wall. Smooth turn right.
-                robot_control.manual_new_command(6, 1, 2);
-            }
-        }
-
-        /* Diagonal left configuration.  */
-        if(cfg_corridor == 4)
-        {
-            // no code required.
-        }
-
-        /* Diagonal right configuration. */
-        if(cfg_corridor == 5)
-        {
-            // no code required.
-        }
-    }
-
-    /* Detect if we are forward in a wall. */
-    robot_sensor_data.detect_wall_situation();
-    // if(!(robot_sensor_data.detection_analyse.isInCorridorMode) && 
-    if(robot_sensor_data.detection_analyse.isWallDetectionLeft || \
-    robot_sensor_data.detection_analyse.isWallDetectionRight)
-    {
-        if(robot_sensor_data.detection_analyse.isWallDetectionLeft)
-        {
-            /* We have a wall on a left. */
-            robot_control.manual_new_command(6, 1, 3);
-        }
-        if(robot_sensor_data.detection_analyse.isWallDetectionRight)
-        {
-            /* We have a wall on a right. */
-            robot_control.manual_new_command(5, 1, 4);
-        }
-    }
-
-    /* Safety check. */
-    double safety_threshold = 130.0; // en mm.
-    double safety_angle_threshold = 60.0;   //autonomous_mode_ultrasonic_integration/en deg.
-    if((robot_sensor_data.ultra_obstacle.obsulF1 || robot_sensor_data.ultra_obstacle.obsulF2) && \
-    ((robot_sensor_data.ultrasonic.ulF1 < safety_threshold) || \ 
-    (robot_sensor_data.ultrasonic.ulF2 < safety_threshold)) && (target_keypoint->target_angle <= safety_angle_threshold))
-    {   
-        // TODO : add goForward, werification.
-
-        robot_control.manual_new_command(0, 3, 5); //stop.
-        if(robot_sensor_data.detection_analyse.isSecurityStop == false)
-        {
-            robot_sensor_data.detection_analyse.time_stop = std::chrono::high_resolution_clock::now();
-        }
-        robot_sensor_data.detection_analyse.isSecurityStop = true;
-    }
-    else { robot_sensor_data.detection_analyse.isSecurityStop = false;}
-}
-
-bool Robot_system::autonomous_mode_safety_stop_checking()
-{
-    /*
-        DESCRIPTION: this function will check if the robot is stop since enough time
-            just after detect frontal obstacle on this path.
-    */
-
-    auto now = std::chrono::high_resolution_clock::now();
-    if(robot_sensor_data.detection_analyse.isSecurityStop)
-    {
-        robot_sensor_data.detection_analyse.elapsed_time_since_stop = now - robot_sensor_data.detection_analyse.time_stop;
-        if((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count() > robot_sensor_data.detection_analyse.wait_time_after_stop)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void Robot_system::mode_checking()
@@ -2536,291 +2131,6 @@ void Robot_system::mode_checking()
             change_mode(Robot_state().lost);
         }
     }
-}
-
-void Robot_system::lost_mode_process()
-{
-    /*
-        DESCRIPTION: this function it's call from thread_COMMANDE and will control
-            rover based only on ultrason sensor.
-    */
-   
-    /* Update proximity sensor information. */
-    robot_sensor_data.proximity_sensor_detection(700.0, 800.0, thread_2_hz);
-
-    /* if obstacle in front turn right. Else go forward. */
-    if((!robot_sensor_data.ultra_obstacle.obsulF1) && (!robot_sensor_data.ultra_obstacle.obsulF2))
-    {
-        robot_control.manual_new_command(1, 2, 6); // go forward.
-    }
-    else
-    {
-        robot_control.manual_new_command(4, 2, 6); // rotate right.
-    }
-}
-
-void Robot_system::takeoff_mode_process()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMANDE and allow 
-            robot to go backward and turn right for the begining of the 
-            session.
-    */
-
-    if(takeoff_phase == 1)
-    {
-        if(takeoff_begin)
-        {
-            auto now = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> elapsed_time = now - takeoff_begin_time;
-            if((int)elapsed_time.count() > 2000) // in ms.
-            {
-                takeoff_phase = 2;
-                takeoff_begin = false;
-            }
-        }
-        if(!takeoff_begin)
-        {   
-            robot_control.manual_new_command(0, 2, 12); // backward.
-            takeoff_begin_time = std::chrono::high_resolution_clock::now();
-            takeoff_begin = true;
-        }
-    }
-    if(takeoff_phase == 2)
-    {
-        if(takeoff_begin)
-        {
-            auto now = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> elapsed_time = now - takeoff_begin_time;
-            if((int)elapsed_time.count() > 2000) // in ms.
-            {
-                robot_control.manual_new_command(0, 3, 12); // stop.
-                change_mode(Robot_state().waiting);
-            }
-        }
-        if(!takeoff_begin)
-        {   
-            robot_control.manual_new_command(4, 2, 12); // rotate right.
-            takeoff_begin_time = std::chrono::high_resolution_clock::now();
-            takeoff_begin = true;
-        }
-    }
-}
-
-void Robot_system::home_mode_process()
-{
-    /*
-        DESCRIPTION: this function call in thread_COMMAND will
-    */
-
-    /* to prepare the approach. */
-    phase_approach = -1;
-
-    autonomous_nav_option = 1;
-    change_mode(Robot_state().compute_nav);
-}
-
-void Robot_system::approach_mode_ultrasonic_integration()
-{
-    /*
-        CALL IN    : thread_COMMAND (approach mode)
-        DESCRIPTION: this function will insure security of robot and it
-            environnement during the approach_mode and detect if we are 
-            in final phase of approach.
-    */
-
-    /* Update proximity sensor information. */
-    robot_sensor_data.proximity_sensor_detection(400.0, 600.0, thread_2_hz);
-
-    /* If we are in lest than approach_threshold we pass in full utrason docking. 
-    but we need a this moment to detect qr code. */
-    if(robot_sensor_data.ultra_obstacle.obsulF1 && robot_sensor_data.ultra_obstacle.obsulF2 && \
-    camera_data.qr_var.qrIsDetected)
-    {
-        if(robot_sensor_data.ultrasonic.ulF1 < 250.0 || \
-        robot_sensor_data.ultrasonic.ulF1 < 250.0)
-        {
-            /* If one of this two frontal front is blocked. */
-            phase_approach = 10; // the final one.
-        }
-    }
-
-    /* we are in full approach mode */
-    if(phase_approach == 10)
-    {
-        /* move very slowly forward. */
-        robot_control.manual_new_command(1, 1, 14);
-
-        /* final stop. */
-        if(robot_sensor_data.ultrasonic.ulF1 < 50.0 || \
-        robot_sensor_data.ultrasonic.ulF1 < 50.0)
-        {
-            robot_control.manual_new_command(0, 1, 14);
-            change_mode(Robot_state().charging);
-        }
-
-        // TODO : integration than current voltage sensor.
-    }
-}
-
-void Robot_system::approach_mode_check_orientation()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMAND when
-            we are in approach mode, and will compute command if we 
-            are not in good orientation. (phase 1 = phase orientation)
-    */
-
-    /* we need to be not lost (visual slam is still working.) */
-    if(robot_position.last_pose.state_slamcore_tracking == 1 && !approach_orientation_isGood)
-    {
-        double angle_ORIENTATION = robot_position.pixel.y_pixel;
-        double angle_to_REACH    = approach_orientation_angle;
-
-        /* first compute 'distance' between this 2 angles. */
-        double distance_deg      = -1;
-        if(angle_to_REACH >= angle_ORIENTATION)
-        {
-            distance_deg         = angle_to_REACH - angle_ORIENTATION;
-            if(distance_deg > 180){ distance_deg = 360 - distance_deg;}
-        }
-        else
-        {
-            distance_deg         = angle_ORIENTATION - angle_to_REACH;
-            if(distance_deg > 180){ distance_deg = 360 - distance_deg;}    
-        }
-
-        /* second, check if it's good enought. */
-        if(distance_deg > approach_orientation_threshold)
-        {
-            /* we need to turn. */
-            if(angle_ORIENTATION <= angle_to_REACH)
-            {
-                if(angle_to_REACH - angle_ORIENTATION <= 180)
-                {
-                    // Right rotation.
-                    robot_control.manual_new_command(4, 2, 7);
-                }
-                else
-                {
-                    // Left rotation.
-                    robot_control.manual_new_command(3, 2, 7);
-                }
-            }
-            else
-            {
-                if(angle_ORIENTATION - angle_to_REACH <= 180)
-                {
-                    // Left rotation.
-                    robot_control.manual_new_command(3, 2, 7);
-                }
-                else
-                {
-                    // Right rotation.
-                    robot_control.manual_new_command(4, 2, 7);
-                }
-            }
-
-            phase_approach = -1; //we are not ready to pass to next.
-        }
-        else
-        {
-            robot_control.manual_new_command(0, 3, 7);
-            landing_attempt            += 1;
-            phase_approach              = 1;
-            approach_orientation_isGood = true;
-            robot_timer.tp_1            = std::chrono::high_resolution_clock::now();
-            robot_timer.init_timer_approach_mode();
-        }
-
-    }
-    else
-    {
-        /* we can found good orientation if visual slam is not working. */
-        /* TODO:
-        pass en mode lost et bien verifier que si on retrouve le slam
-        alors on repartira en mode home pour aller au point important. */
-    }
-}
-
-void Robot_system::approach_mode_motor_commande()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMAND
-            will compute the motor command of the robot when we 
-            are in approach mode in phase 2 (QRCODE phase). 
-    */
-
-    if(camera_data.qr_var.horizontal_position != -1)
-    {
-        /* Check if we smooth left MEDIUM speed. */
-        if(camera_data.qr_var.horizontal_position < \
-        camera_data.qr_var.horizontal_center - camera_data.qr_var.horizontal_threshold)
-        {
-            robot_control.manual_new_command(5, 2, 8);
-        }
-
-        /* Check if we smooth right MEDIUM speed. */
-        if(camera_data.qr_var.horizontal_position > \
-        camera_data.qr_var.horizontal_center + camera_data.qr_var.horizontal_threshold)
-        {
-            robot_control.manual_new_command(6, 2, 8);
-        }
-
-        /* Check if forward MEDIUM speed. */
-        if(camera_data.qr_var.horizontal_position <= \
-        camera_data.qr_var.horizontal_center + camera_data.qr_var.horizontal_threshold && \
-        camera_data.qr_var.horizontal_position >= \
-        camera_data.qr_var.horizontal_center - camera_data.qr_var.horizontal_threshold)
-        {
-            robot_control.manual_new_command(1, 1, 8);
-        }
-
-    }
-}
-
-void Robot_system::approach_mode_try_found_qr()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMAND when the robot
-            has reach is approach point, and it has a good orientation, but  
-            it don't detect qr code since robot_timer.thres_1 ms.
-    */
-
-    /* move forward very slowly during robot_timer.thres_2 ms. */
-    robot_control.manual_new_command(1, 1, 13);
-
-    phase_approach     = 2;
-    robot_timer.tp_2   = std::chrono::high_resolution_clock::now();
-}
-
-void Robot_system::approach_mode_move_back_to_retry()
-{
-    /*
-        DESCRIPTION: this function it's call in thread_COMMAND when the robot
-            need to move backward to retry a new approach.
-    */
-
-    /* move forward very slowly during robot_timer.thres_2 ms. */
-    robot_control.manual_new_command(1, 2, 13);
-
-    phase_approach     = 3;
-    robot_timer.tp_3   = std::chrono::high_resolution_clock::now();
-}
-
-void Robot_system::approach_mode_repeat_procedure()
-{
-    /*
-        DESCRIPTION: when a tentative of docking is not successful
-            all phase we call this function to retry a new tentative.
-    */
-
-    /* security stop. */
-    robot_control.manual_new_command(0, 3, 13);
-
-    /* change to home mode. */
-    change_mode(Robot_state().home);
-
 }
 
 // FONCTION MOTOR.
@@ -2938,29 +2248,6 @@ void Robot_system::secure_command_transmission()
 }
 
 // FONCTION SYSTEM.
-void Robot_system::check_stKP_mode()
-{
-    /*
-        DESCRIPTION: this function it's call before all
-            select target keypoint process and will chose witch
-            mode use. If we are far away than a obstacles
-            we choose the mode 0, if not 1.
-    */
-    if(robot_sensor_data.detection_analyse.obstacle_add)
-    {
-        double threshold_mode_stKP = 2.0 * 20; // en pixel.
-        double distance_from_obstacle = sqrt(pow((robot_position.pixel.i - robot_sensor_data.detection_analyse.last_obstacle.first), 2.0)
-                    + pow((robot_position.pixel.j - robot_sensor_data.detection_analyse.last_obstacle.second), 2.0));
-        if(threshold_mode_stKP <= distance_from_obstacle)
-        {
-            parametre.param_stKP.mode(0);
-            // TODO : create structure function.
-            robot_sensor_data.detection_analyse.last_obstacle.first = -1;
-            robot_sensor_data.detection_analyse.last_obstacle.second = -1;
-            robot_sensor_data.detection_analyse.obstacle_add = false;
-        }
-    }
-}
 
 void Robot_system::change_mode(std::__cxx11::string& state)
 {
@@ -3398,173 +2685,6 @@ void Robot_system::add_lines_sensor(cv::Mat image)
     cv::line(image, cv::Point(400, 150), cv::Point(400, 300), cv::Scalar(0, 0, 0), 2, cv::LINE_8);
 }
 
-void Robot_system::add_ultrasonic(cv::Mat image)
-{
-    /* for debug sensor. */
-    cv::Scalar fond_ulF0( 255, 255, 255);
-    cv::Scalar fond_ulF1( 255, 255, 255);
-    cv::Scalar fond_ulF2( 255, 255, 255);
-    cv::Scalar fond_ulF3( 255, 255, 255);
-    cv::Scalar fond_ulB0( 255, 255, 255);
-    cv::Scalar fond_ulB1( 255, 255, 255);
-    cv::Scalar fond_ulB2( 255, 255, 255);
-
-    fond_ulF0 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF0);
-    fond_ulF1 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF1);
-    fond_ulF2 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF2);
-    fond_ulF3 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulF3);
-    fond_ulB0 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB0);
-    fond_ulB1 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB1);
-    fond_ulB2 = get_color_ultrasonic(robot_sensor_data.ultrasonic.ulB2);
-
-    rectangle(image, cv::Point(0, 0), cv::Point(150, 150),
-            fond_ulF0,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF0),
-            cv::Point(40, 90), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulF0)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(125, 135), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-    
-    rectangle(image, cv::Point(150, 0), cv::Point(300, 150),
-            fond_ulF1,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF1),
-            cv::Point(40+150, 90), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulF1)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(125+150, 135), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-
-    rectangle(image, cv::Point(300, 0), cv::Point(450, 150),
-            fond_ulF2,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF2),
-            cv::Point(40+300, 90), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulF2)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(125+300, 135), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-
-    rectangle(image, cv::Point(450, 0), cv::Point(600, 150),
-            fond_ulF3,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulF3),
-            cv::Point(40+450, 90), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulF3)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(125+450, 135), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-
-    rectangle(image, cv::Point(0, 150), cv::Point(200, 300),
-            fond_ulB0,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB0),
-            cv::Point(40, 90+150), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulB0)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(175, 135+150), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-
-    rectangle(image, cv::Point(200, 150), cv::Point(400, 300),
-            fond_ulB1,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB1),
-            cv::Point(40+200, 90+150), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulB1)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(175+200, 135+150), //top-left position
-        0, //f
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-
-    rectangle(image, cv::Point(400, 150), cv::Point(600, 300),
-            fond_ulB2,
-            -1, cv::LINE_8);
-    cv::putText(image, //target image
-            cv::format("%2.2f", robot_sensor_data.ultrasonic.ulB2),
-            cv::Point(40+400, 90+150), //top-left position
-            0, //font
-            1.0,
-            CV_RGB(0, 0, 0), //font color
-            2);
-    if(robot_sensor_data.ultra_obstacle.obsulB2)
-    {
-        cv::putText(image, //target image
-        "O",
-        cv::Point(175+400, 135+150), //top-left position
-        0, //font
-        1.0,
-        CV_RGB(0, 0, 0), //font color
-        1);
-    }
-}
-
 void Robot_system::add_energy_sensor(cv::Mat image)
 {
     /* Sensor debug.*/
@@ -3682,13 +2802,6 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
-    cv::putText(image, //target image
-        std::to_string(robot_sensor_data.detection_analyse.cfg_corridor), //text
-        cv::Point(410, 85), //top-left position
-        0, //font
-        1.0,
-        dark, //font color
-        2);
     if(robot_control.origin_commande == 3)
     {
         cv::putText(image, //target image
@@ -3708,13 +2821,7 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
-    cv::putText(image, //target image
-    cv::format("%2.2f", robot_sensor_data.detection_analyse.estimateLeftWall), //text
-    cv::Point(410, 135), //top-left position
-    0, //font
-    1.0,
-    dark, //font color
-    2);
+    
     if(robot_control.origin_commande == 4)
     {
         cv::putText(image, //target image
@@ -3734,13 +2841,7 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
-    cv::putText(image, //target image
-    cv::format("%2.2f", robot_sensor_data.detection_analyse.estimateRightWall), //text
-    cv::Point(410, 185), //top-left position
-    0, //font
-    1.0,
-    dark, //font color
-    2);
+
     if(robot_control.origin_commande == 5)
     {
         cv::putText(image, //target image
@@ -3760,13 +2861,6 @@ void Robot_system::debug_autonav(cv::Mat image)
         off, //font color
         4);
     }
-    cv::putText(image, //target image
-    std::to_string((int)robot_sensor_data.detection_analyse.elapsed_time_since_stop.count()), //text
-    cv::Point(410, 235), //top-left position
-    0, //font
-    1.0,
-    dark, //font color
-    2);
 
     cv::putText(image, //target image
     std::to_string(robot_control.manual_commande_message), //text
@@ -4021,7 +3115,6 @@ void Robot_system::thread_ANALYSER(int frequency)
         if(true)
         {   
             cv::Mat copy_debug_sensor = debug_sensor.clone();
-            add_ultrasonic(copy_debug_sensor);
             add_energy_sensor(copy_debug_sensor);
             add_lines_sensor(copy_debug_sensor);
             cv::namedWindow("Debug sensor",cv::WINDOW_AUTOSIZE);
@@ -4105,27 +3198,6 @@ void Robot_system::debug_add_robot_pose(cv::Mat copy_debug_visual_map)
     Pair point = from_3DW_to_2DM2(x, y);
     cv::line(copy_debug_visual_map, cv::Point(robot_position.pixel.i, robot_position.pixel.j), cv::Point(point.first, point.second), cv::Scalar(0, 0, 255), 1, cv::LINE_8);
 
-    // TODO : add sensor detection.
-    for(auto obs : robot_sensor_data.detection_analyse.obstacles)
-    {
-        if(obs.first != 1)
-        {
-            draw_pose = cv::Point(obs.first, obs.second);
-            cv::circle( copy_debug_visual_map,
-            draw_pose,
-            1,
-            cv::Scalar( 100, 100, 255 ),
-            cv::FILLED,
-            cv::LINE_8 );
-        }
-    }
-    for(auto line : robot_sensor_data.detection_analyse.lines)
-    {
-        // try_avoid.
-        // cv::line(copy_debug_visual_map, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(180, 112, 18), 13, cv::LINE_8);
-        // no go.
-        cv::line(copy_debug_visual_map, cv::Point(line.first.first, line.first.second), cv::Point(line.second.first, line.second.second), cv::Scalar(100, 12, 75), 6, cv::LINE_8);
-    }
     //  draw_pose = cv::Point(robot_position.transformation.FL_sensor_pose.first, robot_position.transformation.FL_sensor_pose.second);
     // cv::circle( copy_debug_visual_map,
     // draw_pose,

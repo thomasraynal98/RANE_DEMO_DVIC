@@ -41,8 +41,8 @@ class Robot_system
         std::string robot_general_state;
         std::string robot_general_state_before_lost;
         double distance_between_keypoint = 0.3;
-        Robot_sensor robot_sensor_data;
         Stream_cam camera_data;
+        Robot_sensor robot_sensor_data;
         Mtimer robot_timer;
 
         // VARIABLE COMMANDE.
@@ -191,23 +191,10 @@ class Robot_system
         bool cellIsReach();
         bool destination_reach();
         bool isInVect(std::vector<int> vector, int stuf);
-        bool recompute_new_path();
 
         // FONCTION MODE.
         void manual_mode_process();
-        void manual_mode_security_sensor();
-        bool autonomous_mode_safety_stop_checking();
-        void autonomous_mode_ultrasonic_integration();
         void mode_checking();
-        void lost_mode_process();
-        void takeoff_mode_process();
-        void home_mode_process();
-        void approach_mode_ultrasonic_integration();
-        void approach_mode_check_orientation();
-        void approach_mode_motor_commande();
-        void approach_mode_try_found_qr();
-        void approach_mode_move_back_to_retry();
-        void approach_mode_repeat_procedure();
 
         // FONCTION MOTOR.
         void secure_command_transmission();
@@ -223,7 +210,6 @@ class Robot_system
         void debug_add_robot_pose(cv::Mat copy_debug_visual_map);
         void debug_add_path_keypoint(cv::Mat copy_debug_visual_map);
         void add_lines_sensor(cv::Mat image);
-        void add_ultrasonic(cv::Mat image);
         cv::Scalar get_color_ultrasonic(double value);
         void add_energy_sensor(cv::Mat image);
         void debug_message_server();
@@ -233,7 +219,6 @@ class Robot_system
         float round(float var);
 
         // FONCTION SYSTEM.
-        void check_stKP_mode();
         void change_mode(std::__cxx11::string& state);
         static void my_handler(int var);
         int test();
