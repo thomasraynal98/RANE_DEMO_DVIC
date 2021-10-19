@@ -16,6 +16,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread -o CPUUsage")
 # find package.
 FIND_PACKAGE(OpenCV 4 REQUIRED)
 FIND_PACKAGE(slamcore_sdk REQUIRED)
+find_package(ydlidar_sdk REQUIRED)
+
+include_directories(
+  ${YDLIDAR_SDK_INCLUDE_DIRS}
+)
+link_directories(${YDLIDAR_SDK_LIBRARY_DIRS})
 
 # add the executable.
 ADD_EXECUTABLE(rane_software 
@@ -32,7 +38,8 @@ TARGET_LINK_LIBRARIES(rane_software
     /usr/local/lib/libserial.so
     slamcore::slamcore
     sioclient
-    pthread)
+    pthread
+    ${YDLIDAR_SDK_LIBRARIES})
 
 # add weighted map executable maker.
 ADD_EXECUTABLE(make_weighted_map

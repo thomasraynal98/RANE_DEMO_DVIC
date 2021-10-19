@@ -121,6 +121,7 @@ class Robot_system
         std::thread thread_7_listener_SERVER;
         std::thread thread_8_speaker_SERVER;
         std::thread thread_9_thread_ANALYSER;
+        std::thread thread_10_LIDAR;
 
         std::chrono::high_resolution_clock::time_point thread_1_last_hz_update;
         std::chrono::high_resolution_clock::time_point thread_2_last_hz_update;
@@ -131,6 +132,7 @@ class Robot_system
         std::chrono::high_resolution_clock::time_point thread_7_last_hz_update;
         std::chrono::high_resolution_clock::time_point thread_8_last_hz_update;
         std::chrono::high_resolution_clock::time_point thread_9_last_hz_update;
+        std::chrono::high_resolution_clock::time_point thread_10_last_hz_update;
 
         double thread_1_hz;
         double thread_2_hz;
@@ -141,6 +143,7 @@ class Robot_system
         double thread_7_hz;
         double thread_8_hz;
         double thread_9_hz;
+        double thread_10_hz;
 
         double time_since_we_consider_thread_disconnect = 500;   // note: time in ms.
 
@@ -170,6 +173,7 @@ class Robot_system
         void init_thread_system();
         void init_socketio();
         bool init_basic_data();
+        void init_lidar();
 
         // FONCTION NAVIGATION.
         bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);
@@ -230,6 +234,7 @@ class Robot_system
         void thread_SERVER_LISTEN(int frequency);
         void thread_SERVER_SPEAKER(int frequency);
         void thread_ANALYSER(int frequency);
+        void thread_LIDAR(int frequency);
 
 };
 

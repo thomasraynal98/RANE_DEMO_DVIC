@@ -42,6 +42,8 @@
 #include <cstdlib>
 #include <signal.h>
 
+#include "CYdLidar.h"
+
 #include "../include/robot_system.h"
 #include "../include/fonction.h"
 #include "../include/connection_listener.h"
@@ -915,6 +917,36 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
     }
 }
 
+void Robot_system::thread_LIDAR(int frequency)
+{
+    /* DESCRIPTION:
+        this thread allow the data recuperation of lidar sensor.
+    */
+
+    /* TIMING VARIABLE TO OPTIMISE FREQUENCY. */
+    double time_of_loop = 1000/frequency;                  // en milliseconde.
+    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> time_span;
+    auto next = std::chrono::high_resolution_clock::now();
+
+    signal(SIGINT, my_handler);
+    signal(SIGQUIT, my_handler);
+
+    while(true)
+    {   
+        /* TIMING VARIABLE. */
+        x                          = std::chrono::high_resolution_clock::now();         
+        time_span                  = x-last_loop_time;
+        thread_10_hz               = 1000/(double)time_span.count();
+        thread_10_last_hz_update   = x;
+        last_loop_time             = x;
+        next                       += std::chrono::milliseconds((int)time_of_loop);
+        std::this_thread::sleep_until(next);
+        /* END TIMING VARIABLE. */
+    }
+}
+
 // CONSTRUCTOR FOR THE MAIN CLASS.
 Robot_system::Robot_system()
 {   
@@ -942,6 +974,9 @@ Robot_system::Robot_system()
         debug_init_debug_map(); // Initialisation of debug map.
         debug_init_sensor();    // Initialisation of debug sensor.
     }
+
+    /* Lidar initialisation. */
+    init_lidar();
 
     /* STEP 5. Initialisation microcontroler communication. */
     if(init_microcontroler() != 2){}// {change_mode(Robot_state().warning);}
@@ -1378,6 +1413,7 @@ void Robot_system::init_thread_system()
     thread_7_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_8_last_hz_update   = std::chrono::high_resolution_clock::now();
     thread_9_last_hz_update   = std::chrono::high_resolution_clock::now();
+    thread_10_last_hz_update  = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
     thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
@@ -1389,6 +1425,7 @@ void Robot_system::init_thread_system()
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
     //thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
+    thread_10_LIDAR           = std::thread(&Robot_system::thread_LIDAR         , this,  10); 
 
     /* Join all thread. */
     thread_1_localisation.join();
@@ -1400,6 +1437,7 @@ void Robot_system::init_thread_system()
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
     //thread_9_thread_ANALYSER.join();
+    thread_10_LIDAR.join();
 }
 
 void Robot_system::init_socketio()
@@ -1437,6 +1475,13 @@ void Robot_system::init_socketio()
     
     /* Initialisation server listening. */
     bind_events();
+}
+
+void Robot_system::init_lidar()
+{
+    /* DESCRIPTION:
+        this function will init all lidar variable.
+    */
 }
 
 // FONCTION NAVIGATION.
