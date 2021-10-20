@@ -235,6 +235,9 @@ void Robot_system::send_data_to_server()
     /* Utilisation data. */
     data_robot->get_map()["robot_use_time"]  = sio::int_message::create((int)robot_timer.duration_tX.count());
 
+    /* Lidar data. */
+    data_robot->get_map()["lidar_data"]      = generate_data_lidar_for_server();
+
     /* send it. */
     current_socket->emit("global_data", data_robot);
 }
@@ -276,6 +279,35 @@ sio::message::ptr Robot_system::generate_keypoint_vector_message()
         {
             array_to_transmit->get_vector().push_back(sio::int_message::create(keypoint.coordinate.first));
             array_to_transmit->get_vector().push_back(sio::int_message::create(keypoint.coordinate.second));
+        }
+    }
+
+    return array_to_transmit;
+}
+
+sio::message::ptr Robot_system::generate_data_lidar_for_server()
+{
+    /*
+        DESCRIPTION:
+    */
+
+    sio::message::ptr array_to_transmit = sio::array_message::create();
+    double new_angle;
+
+    if(!data_lidar_sample.empty())
+    {
+        for(auto sample : data_lidar_sample)
+        {   
+            if(sample.angle < -M_PI_2)
+            {
+                new_angle = sample.angle - M_PI_2;
+            }
+            if(sample.angle > M_PI_2)
+            {
+                new_angle = 180 - ( -sample.angle) + 90;
+            }
+            array_to_transmit->get_vector().push_back(sio::double_message::create(new_angle));
+            array_to_transmit->get_vector().push_back(sio::double_message::create(sample.value));
         }
     }
 
@@ -364,8 +396,8 @@ void Robot_system::thread_COMMANDE(int frequency)
         /* END TIMING VARIABLE. */
 
         /* Statue print. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
-        "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
+        // std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
+        // "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -684,7 +716,7 @@ void Robot_system::thread_SPEAKER(int frequency, LibSerial::SerialPort** serial_
                 catch(LibSerial::NotOpen ex){std::cout << "Port " << pong_message << " not open.\n";}
                 catch(std::runtime_error ex){}
                 
-                std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
+                // std::cout << "[MESSAGE_MICROA_SEND:" << robot_control.message_microcontrolerA << "]\n";
             }
             // for Microcontroler B.
             if(micro_name == "B")

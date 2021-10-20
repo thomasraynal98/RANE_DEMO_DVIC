@@ -164,6 +164,7 @@ class Robot_system
         void send_data_to_server();
         void send_debug_data();
         sio::message::ptr generate_keypoint_vector_message();
+        sio::message::ptr generate_data_lidar_for_server();
 
         // FONCTION MICROCONTROLER.
         std::string get_id();
