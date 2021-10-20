@@ -49,6 +49,10 @@ class Robot_system
         Robot_control robot_control;
         Robot_control robot_control_last_send;
 
+        // VARIABLE LIDAR.
+        std::vector<Data_lidar> data_lidar_sample;
+        // std::vector<Point_2D> list_points;
+
         // VARIABLE NAVIGATION.
         // TODO : bien décrire fonctionnement des variable en dessous.
         bool slam_process_state = false; // represent pure working process.
@@ -98,6 +102,7 @@ class Robot_system
         cv::Mat debug_visual_map;
         cv::Mat debug_sensor;
         cv::Mat debug_autonomous_ultra;
+        cv::Mat debug_lidar;
 
         // VARIABLE INTERNE SENSOR.
         int state_sensor_cpu = 0;  //(1=CONNECT/2=DISCONNECT)
@@ -173,7 +178,6 @@ class Robot_system
         void init_thread_system();
         void init_socketio();
         bool init_basic_data();
-        void init_lidar();
 
         // FONCTION NAVIGATION.
         bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);
@@ -219,6 +223,8 @@ class Robot_system
         void debug_init_debug_map();
         void debug_init_sensor();
         void debug_autonav(cv::Mat image);
+        void debug_init_lidar();
+        void debug_lidar_interface(cv::Mat image);
         float round(float var);
 
         // FONCTION SYSTEM.

@@ -923,27 +923,142 @@ void Robot_system::thread_LIDAR(int frequency)
         this thread allow the data recuperation of lidar sensor.
     */
 
-    /* TIMING VARIABLE TO OPTIMISE FREQUENCY. */
-    double time_of_loop = 1000/frequency;                  // en milliseconde.
-    std::chrono::high_resolution_clock::time_point last_loop_time = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point x              = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> time_span;
-    auto next = std::chrono::high_resolution_clock::now();
+    /* DESCRIPTION:
+        this function will init all lidar variable.
+        1. check one by one the port to detect lidar.
+    */
+    ydlidar::os_init();
 
-    signal(SIGINT, my_handler);
-    signal(SIGQUIT, my_handler);
+    CYdLidar laser;
 
-    while(true)
-    {   
-        /* TIMING VARIABLE. */
-        x                          = std::chrono::high_resolution_clock::now();         
-        time_span                  = x-last_loop_time;
-        thread_10_hz               = 1000/(double)time_span.count();
-        thread_10_last_hz_update   = x;
-        last_loop_time             = x;
-        next                       += std::chrono::milliseconds((int)time_of_loop);
-        std::this_thread::sleep_until(next);
-        /* END TIMING VARIABLE. */
+    int i = 0;
+    // TODO : step 1.
+    while(i<5)
+    {
+
+        //////////////////////string property/////////////////
+        /// Lidar ports
+        std::string port = "/dev/ttyUSB" + std::__cxx11::to_string(i);
+
+        /// lidar port
+        laser.setlidaropt(LidarPropSerialPort, port.c_str(), port.size());
+        /// ignore array
+        std::string ignore_array;
+        ignore_array.clear();
+        laser.setlidaropt(LidarPropIgnoreArray, ignore_array.c_str(),
+                        ignore_array.size());
+
+        //////////////////////int property/////////////////
+        /// lidar baudrate
+        int optval = 128000;
+        laser.setlidaropt(LidarPropSerialBaudrate, &optval, sizeof(int));
+        /// tof lidar
+        optval = TYPE_TRIANGLE;
+        laser.setlidaropt(LidarPropLidarType, &optval, sizeof(int));
+        /// device type
+        optval = YDLIDAR_TYPE_SERIAL;
+        laser.setlidaropt(LidarPropDeviceType, &optval, sizeof(int));
+        /// sample rate
+        optval = 5;
+        laser.setlidaropt(LidarPropSampleRate, &optval, sizeof(int));
+        /// abnormal count
+        optval = 4;
+        laser.setlidaropt(LidarPropAbnormalCheckCount, &optval, sizeof(int));
+
+        //////////////////////bool property/////////////////
+        /// fixed angle resolution
+        bool b_optvalue = false;
+        laser.setlidaropt(LidarPropFixedResolution, &b_optvalue, sizeof(bool));
+        /// rotate 180
+        laser.setlidaropt(LidarPropReversion, &b_optvalue, sizeof(bool));
+        /// Counterclockwise
+        laser.setlidaropt(LidarPropInverted, &b_optvalue, sizeof(bool));
+        b_optvalue = true;
+        laser.setlidaropt(LidarPropAutoReconnect, &b_optvalue, sizeof(bool));
+        /// one-way communication
+        b_optvalue = false;
+        laser.setlidaropt(LidarPropSingleChannel, &b_optvalue, sizeof(bool));
+        /// intensity
+        b_optvalue = false;
+        laser.setlidaropt(LidarPropIntenstiy, &b_optvalue, sizeof(bool));
+        /// Motor DTR
+        b_optvalue = true;
+        laser.setlidaropt(LidarPropSupportMotorDtrCtrl, &b_optvalue, sizeof(bool));
+
+        //////////////////////float property/////////////////
+        /// unit: °
+        float f_optvalue = 180.0f;
+        laser.setlidaropt(LidarPropMaxAngle, &f_optvalue, sizeof(float));
+        f_optvalue = -180.0f;
+        laser.setlidaropt(LidarPropMinAngle, &f_optvalue, sizeof(float));
+        /// unit: m
+        f_optvalue = 16.f;
+        laser.setlidaropt(LidarPropMaxRange, &f_optvalue, sizeof(float));
+        f_optvalue = 0.1f;
+        laser.setlidaropt(LidarPropMinRange, &f_optvalue, sizeof(float));
+        /// unit: Hz
+        f_optvalue = 8.f;
+        laser.setlidaropt(LidarPropScanFrequency, &f_optvalue, sizeof(float));
+
+
+        // initialize SDK and LiDAR
+        bool ret = laser.initialize();
+        if (ret) {//success
+            //Start the device scanning routine which runs on a separate thread and enable motor.
+            ret = laser.turnOn();
+        } else {
+            fprintf(stderr, "%s\n", laser.DescribeError());
+            fflush(stderr);
+        }
+        
+        if(ret && ydlidar::os_isOk())
+        {   
+            // Memorise port name.
+            robot_sensor_data.lidar.port  = port;
+            robot_sensor_data.lidar.laser = &laser;
+            robot_sensor_data.lidar.ret   = ret;
+            robot_sensor_data.lidar.is_On = true;
+            break;
+        }
+        else
+        {
+            // Stop the device scanning thread and disable motor.
+            laser.turnOff();
+            // Uninitialize the SDK and Disconnect the LiDAR.
+            laser.disconnecting();
+            // try an other port.
+            i+=1;
+        }
+    }
+
+    //
+    while (robot_sensor_data.lidar.ret && ydlidar::os_isOk()) 
+    {
+        LaserScan scan;
+        if (robot_sensor_data.lidar.laser->doProcessSimple(scan)) 
+        {
+            // fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n",
+            //         scan.stamp,
+            //         (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
+            // fflush(stdout);
+            data_lidar_sample.clear();
+            for(auto point : scan.points)
+            {
+                if(abs(point.angle)>M_PI_2)
+                {
+                    Data_lidar observation;
+                    observation.angle = -point.angle;
+                    observation.value = point.range;
+                    data_lidar_sample.push_back(observation);
+                    // std::cout << "[" << point.angle*180/M_PI << "," << point.range << "\n"; 
+                }
+            }
+        } 
+        else 
+        {
+            fprintf(stderr, "Failed to get Lidar Data\n");
+            fflush(stderr);
+        }
     }
 }
 
@@ -973,12 +1088,11 @@ Robot_system::Robot_system()
     {
         debug_init_debug_map(); // Initialisation of debug map.
         debug_init_sensor();    // Initialisation of debug sensor.
+        debug_init_lidar();     // Initialisation of debug lidar.
     }
 
-    /* Lidar initialisation. */
-    init_lidar();
-
-    /* STEP 5. Initialisation microcontroler communication. */
+    /* STEP 5. Initialisation microcontroler communication. 
+    mais cela ne va pas marcher car on attend le démarage de lidar.*/
     if(init_microcontroler() != 2){}// {change_mode(Robot_state().warning);}
 
     /* STEP 6. Initialisation connection server. */
@@ -1022,98 +1136,58 @@ LibSerial::SerialPort* Robot_system::get_available_port(const int debug_mode, co
         * _                 > pointor to object SerialPort.
     */
     
-    // Check all ttyACMX.
-    // for (int i=0; i<4; i++)
-    // {
-    //     LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
-    //     std::string name_port = "/dev/ttyACM" + std::__cxx11::to_string(i);
-    //     bool is_openable = true;
-
-    //     if(debug_mode==1) {std::cout << "pointeur:" << &serial_port <<"\n";}
-
-    //     try{ serial_port->Open(name_port);}
-    //     catch (LibSerial::OpenFailed ex)
-    //     {
-    //         if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
-    //         is_openable = false;
-    //     }
-    //     catch (LibSerial::AlreadyOpen ex)
-    //     {
-    //         if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
-    //         is_openable = false;
-    //     }
-
-    //     if(is_openable)
-    //     {
-    //         if(wait_option){ usleep(2000000);}
-    //         if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
-    //         if(debug_mode==1) {std::cout << "message:" << message << "\n";}
-    //         try{ serial_port->Write(message);}
-    //         catch(std::runtime_error ex) { std::cout << "nop\n"; }
-
-    //         std::string reponse;
-    //         serial_port->ReadLine(reponse);
-    //         if(debug_mode==1) {std::cout << "reponse:" << reponse;}
-    
-    //         if(match_ping_pong(message, reponse))
-    //         {   
-    //             // TODO: move this cheat code.
-    //             if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
-    //             if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
-    //             // TODOEND.
-
-    //             return serial_port;
-    //         }
-    //         else{serial_port->Close();}
-    //     }
-    // }
-
-    // std::cout << "[DEBUTFONCION:" << serial_port << "]\n";
     // Check all ttyUSBX.
-    for (int i=0; i<4; i++)
+    if(robot_sensor_data.lidar.is_On)
     {
-        LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
-        // LibSerial::SerialPort* serial_port2 = new LibSerial::SerialPort;
-        std::string name_port = "/dev/ttyUSB" + std::__cxx11::to_string(i);
-        bool is_openable = true;
-
-        if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
-
-        try{ serial_port->Open(name_port);}
-        catch (LibSerial::AlreadyOpen ex)
+        for (int i=0; i<4; i++)
         {
-            if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
-            is_openable = false;
-        }
-        catch (LibSerial::OpenFailed ex)
-        {
-            if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
-            is_openable = false;
-        }
+            LibSerial::SerialPort* serial_port = new LibSerial::SerialPort;
+            // LibSerial::SerialPort* serial_port2 = new LibSerial::SerialPort;
+            std::string name_port = "/dev/ttyUSB" + std::__cxx11::to_string(i);
+            bool is_openable = true;
 
-        if(is_openable)
-        {
-            if(wait_option){ usleep(500000);}
+            // TODO: dont open lidar port again.
+            if(name_port.compare(robot_sensor_data.lidar.port) != 0)
+            {
+                if(debug_mode==1) {std::cout << "pointeur:" << serial_port <<"\n";}
 
-            if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
-            if(debug_mode==1) {std::cout << "message:" << message << "\n";}
-            try{ serial_port->Write(message);}
-            catch(std::runtime_error ex) { std::cout << "nop\n"; }
-            
-            std::string reponse;
-            serial_port->ReadLine(reponse);
-            if(debug_mode==1) {std::cout << "reponse:" << reponse;}
+                try{ serial_port->Open(name_port);}
+                catch (LibSerial::AlreadyOpen ex)
+                {
+                    if(debug_mode==1) {std::cout << "SerialPort already open : " << name_port << std::endl;}
+                    is_openable = false;
+                }
+                catch (LibSerial::OpenFailed ex)
+                {
+                    if(debug_mode==1) {std::cout << "Failed to open SerialPort : " << name_port << std::endl;}
+                    is_openable = false;
+                }
 
-            if(match_ping_pong(message, reponse))
-            {   
-                // TODO: move this cheat code.
-                if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
-                if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
-                // TODOEND.
-                std::cout << "[MATCH]" << serial_port << std::endl;
-                return serial_port;
+                if(is_openable)
+                {
+                    if(wait_option){ usleep(500000);}
+
+                    if(debug_mode==1) {std::cout << "Succes to open SerialPort : " << name_port << std::endl;}
+                    if(debug_mode==1) {std::cout << "message:" << message << "\n";}
+                    try{ serial_port->Write(message);}
+                    catch(std::runtime_error ex) { std::cout << "nop\n"; }
+                    
+                    std::string reponse;
+                    serial_port->ReadLine(reponse);
+                    if(debug_mode==1) {std::cout << "reponse:" << reponse;}
+
+                    if(match_ping_pong(message, reponse))
+                    {   
+                        // TODO: move this cheat code.
+                        if(match_ping_pong(controler_A_pong, reponse)){ port_A_name = name_port; }
+                        if(match_ping_pong(controler_B_pong, reponse)){ port_B_name = name_port; }
+                        // TODOEND.
+                        std::cout << "[MATCH]" << serial_port << std::endl;
+                        return serial_port;
+                    }
+                    else{serial_port->Close(); std::cout << "[CLOSE_PORT]" << std::endl;}
+                }
             }
-            else{serial_port->Close(); std::cout << "[CLOSE_PORT]" << std::endl;}
         }
     }
 
@@ -1416,7 +1490,7 @@ void Robot_system::init_thread_system()
     thread_10_last_hz_update  = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
@@ -1424,11 +1498,11 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB   = std::thread(&Robot_system::thread_SPEAKER       , this,  20,  __serial_port_sensor_B, std::ref(state_B_controler), controler_B_pong, "B");
     thread_7_listener_SERVER  = std::thread(&Robot_system::thread_SERVER_LISTEN , this,  20);
     thread_8_speaker_SERVER   = std::thread(&Robot_system::thread_SERVER_SPEAKER, this,  10); 
-    //thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
+    thread_9_thread_ANALYSER  = std::thread(&Robot_system::thread_ANALYSER      , this,  10); 
     thread_10_LIDAR           = std::thread(&Robot_system::thread_LIDAR         , this,  10); 
 
     /* Join all thread. */
-    thread_1_localisation.join();
+    // thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
@@ -1436,7 +1510,7 @@ void Robot_system::init_thread_system()
     thread_6_speaker_MICROB.join();
     thread_7_listener_SERVER.join();
     thread_8_speaker_SERVER.join();
-    //thread_9_thread_ANALYSER.join();
+    thread_9_thread_ANALYSER.join();
     thread_10_LIDAR.join();
 }
 
@@ -1475,13 +1549,6 @@ void Robot_system::init_socketio()
     
     /* Initialisation server listening. */
     bind_events();
-}
-
-void Robot_system::init_lidar()
-{
-    /* DESCRIPTION:
-        this function will init all lidar variable.
-    */
 }
 
 // FONCTION NAVIGATION.
@@ -3157,6 +3224,15 @@ void Robot_system::thread_ANALYSER(int frequency)
             cv::imshow("Autonav integration", copy_debug_autonomous_ultra);
         }
 
+        // LIDAR SHOW.
+        if(true)
+        {
+            cv::Mat copy_interface_visuel = debug_lidar.clone();
+            debug_lidar_interface(copy_interface_visuel);
+            cv::namedWindow("lidar integration",cv::WINDOW_AUTOSIZE);
+            cv::imshow("lidar integration", copy_interface_visuel);
+        }
+
         char d=(char)cv::waitKey(25);
 	    if(d==27)
 	      break;
@@ -3324,4 +3400,71 @@ void Robot_system::debug_init_sensor()
 
     cv::Mat debug_sensor_init(350, 600, CV_8UC3, cv::Scalar(255, 255, 255));
     debug_sensor = debug_sensor_init;
+}
+
+void Robot_system::debug_init_lidar()
+{
+    /* DESCRIPTION:
+        we init the debug init.
+    */
+    cv::Mat interface_visuel(450, 800, CV_8UC3, cv::Scalar(255, 255, 255));
+    cv::circle(interface_visuel, cv::Point(400,400),4, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
+    debug_lidar = interface_visuel;
+}
+
+void Robot_system::debug_lidar_interface(cv::Mat interface_visuel)
+{ 
+  /*  DESCRIPTION:
+      this function will take all lidar data and show them in beautiful 
+      opencv interface.
+  */
+
+//   convert brut data to 2D points.
+//   Point_2D last_save_for_WD;      
+//   last_save_for_WD.i = 0;
+//   last_save_for_WD.j = 0;
+  for(auto point : data_lidar_sample)
+  {
+    int pixel_x = sin(point.angle)*point.value*400/5+400;
+    int pixel_y = cos(point.angle)*point.value*400/5+400;
+    // if(pixel_x != 400 && pixel_y != 400 && point.value > 0.3)
+    // {
+    //   Point_2D new_p;
+    //   new_p.i = pixel_x;
+    //   new_p.j = pixel_y;
+    //   // std::cout << "point(" << pixel_x << "," << pixel_y << ") ";
+    //   if(pow((pow(new_p.i-last_save_for_WD.i,2)+pow(new_p.j-last_save_for_WD.j,2)),0.5)*5/400 > 0.1)
+    //   {list_points.push_back(new_p);
+    //     last_save_for_WD.i = pixel_x;
+    //     last_save_for_WD.j = pixel_y;
+    //   }
+    // }
+    // std::cout << point.angle << "," << point.value << " en pixel : " << pixel_x << "," << pixel_y << "\n";
+    cv::circle(interface_visuel, cv::Point(pixel_x,pixel_y),1, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
+  }
+//   wall_detector(list_points, list_line_cluster);
+//   int color_compteur = 0;
+//   std::cout << "[LINE DETECTION]" << "\n";
+//   for(auto line : *list_line_cluster)
+//   {
+//     //compute angle.
+//     double t = pow(pow(line.total_i,2)+pow(line.total_j,2),0.5);
+//     double angle = acos(line.total_i/t);
+    
+
+//     std::cout << "cluster: " << line.id << " ,size:" << line.nombre << " ,angle: " << angle << " totali:" << line.total_i << "," << line.total_j << "\n";
+//     for(auto point : *list_points)
+//     {
+//       if(point.cluster == line.id)
+//       {
+//         cv::circle(interface_visuel, cv::Point(point.i,point.j),2, cv::Scalar(color_liste[color_compteur].B,color_liste[color_compteur].G,color_liste[color_compteur].R), cv::FILLED, 1, 0);
+//       }
+//     }
+//     color_compteur += 1;
+//     if(color_compteur >= color_liste.size()) {color_compteur = 0;}
+//   }
+
+//   cv::namedWindow("interface_visuel",cv::WINDOW_AUTOSIZE);
+//   cv::imshow("interface_visuel", interface_visuel);
+
 }

@@ -15,6 +15,8 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 
+#include "CYdLidar.h"
+
 typedef std::pair<int, int> Pair;
 typedef std::pair<Pair, Pair> Obstacle_lines;
 typedef std::tuple<double, int, int> Tuple;
@@ -443,6 +445,14 @@ struct Robot_sensor
         double voltage{0};
         double current{0};
     } energy;
+
+    struct Lidar
+    {
+        std::string port;
+        CYdLidar * laser;
+        bool ret;
+        bool is_On{false};
+    } lidar;
 };
 
 struct Path_keypoint 
@@ -670,6 +680,19 @@ struct Mtimer{
         timer_2_activate = false;
     }
 };
+
+struct Data_lidar
+{
+  double angle;
+  double value;
+};
+
+// struct Point_2D
+// {
+//   int i;
+//   int j;
+//   int cluster{0};
+// };
 
 bool test(bool is_cool);
 
