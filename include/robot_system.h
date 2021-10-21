@@ -51,7 +51,9 @@ class Robot_system
 
         // VARIABLE LIDAR.
         std::vector<Data_lidar> data_lidar_sample;
-        // std::vector<Point_2D> list_points;
+        std::vector<Point_2D> list_points;
+        cv::Mat local_grid;
+        cv::Mat copy_local_grid;
 
         // VARIABLE NAVIGATION.
         // TODO : bien décrire fonctionnement des variable en dessous.
@@ -181,7 +183,7 @@ class Robot_system
         bool init_basic_data();
 
         // FONCTION NAVIGATION.
-        bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest);
+        bool aStarSearch(cv::Mat grid, Pair& src, Pair& dest, int option_lidar);
         double calculateHValue(const Pair src, const Pair dest);
         bool isDestination(const Pair& position, const Pair& dest);
         bool isUnBlocked(cv::Mat grid, const Pair& point);
@@ -205,9 +207,14 @@ class Robot_system
         void manual_mode_process();
         void mode_checking();
         void autonomous_nav_mode_lidar_integration();
-        void project_keypoint_in_lidar_referencial();
+        std::vector<Pair> generate_multi_destination(std::vector<Point_2D> projected_keypoint);
+        std::vector<Point_2D> project_keypoint_in_lidar_referencial();
         std::vector<Path_keypoint*> get_kp_list(double selection_range);
         std::vector<Point_2D> transform_angle_in_lidar_ref(std::vector<Path_keypoint*> keypoints_list_for_projection);
+        bool detect_path_obstruption(std::vector<Point_2D> projected_keypoint);
+        cv::Mat update_local_grid(std::vector<Point_2D> projected_keypoint);
+        void generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid);
+        void select_PATKP(std::stack<Pair> Path);
 
         // FONCTION MOTOR.
         void secure_command_transmission();
