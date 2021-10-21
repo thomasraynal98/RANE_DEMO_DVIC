@@ -2328,12 +2328,6 @@ void Robot_system::autonomous_nav_mode_lidar_integration()
 
         /* __ If(yes) run A* on this local grid map. */
         generate_PATKP(list_destination, current_lidar_grid);
-
-        /* __ __ If(yes) (A*=OK) compute Priority Alternative Target Keypoint with optional option. */
-
-        /* __ __ __ Remplace the actual Target Keypoint with PATKP.
-
-        /* __ __ If(yes) (A*=NON) stop robot for a moment. */
     }
 }
 
@@ -2356,7 +2350,20 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
     /* Now, choose a KP in this list and transform to PATKP. */
     // one cell = 20 cm.
     int number = 7; //1.50m
-    target_keypoint->coordinate
+
+    Pair my_pt = vector_global_path[number];
+    my_pt.first = (int)(((my_pt.first*16)+((my_pt.first+1)*16))/2);
+    my_pt.first = (int)(((my_pt.second*16)+((my_pt.second+1)*16))/2);
+    
+    transform_lidarRef_to_globalRef(my_pt);
+}
+
+void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
+{
+    /* DESCRIPTION:
+        this function will take the PATKP and transform it to global ref
+        for motor control descision.
+    */
 }
 
 void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid)

@@ -65,6 +65,7 @@ class Robot_system
         std::vector<Path_keypoint> keypoints_path;
         std::vector<Path_keypoint*> possible_candidate_target_keypoint;
         Path_keypoint* target_keypoint;
+        Path_keypoint PATKP_point;
         Pair destination_point;
         int takeoff_phase = 1;
         bool takeoff_begin = false;
@@ -215,6 +216,7 @@ class Robot_system
         cv::Mat update_local_grid(std::vector<Point_2D> projected_keypoint);
         void generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid);
         void select_PATKP(std::stack<Pair> Path);
+        void transform_lidarRef_to_globalRef(Pair point_lidarRef)
 
         // FONCTION MOTOR.
         void secure_command_transmission();
