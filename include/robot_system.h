@@ -204,6 +204,10 @@ class Robot_system
         // FONCTION MODE.
         void manual_mode_process();
         void mode_checking();
+        void autonomous_nav_mode_lidar_integration();
+        void project_keypoint_in_lidar_referencial();
+        std::vector<Path_keypoint*> get_kp_list(double selection_range);
+        std::vector<Point_2D> transform_angle_in_lidar_ref(std::vector<Path_keypoint*> keypoints_list_for_projection);
 
         // FONCTION MOTOR.
         void secure_command_transmission();

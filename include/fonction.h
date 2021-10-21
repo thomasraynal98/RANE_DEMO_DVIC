@@ -452,6 +452,25 @@ struct Robot_sensor
         CYdLidar * laser;
         bool ret;
         bool is_On{false};
+
+        // safe zone.
+        double longeur{25.0};
+        double largeur{60.0};
+        double roue   {5.0};
+        cv::Point p1;
+        cv::Point p2;
+
+        bool dangerous_obstacle{false};
+
+        bool is_In_Security_zone(int x, int y)
+        {
+            if(x >= p1.x && x <= p2.x && y >= p1.y && y <= p2.y)
+            {
+                return true;
+            }
+            return false;
+        }
+
     } lidar;
 };
 
@@ -687,12 +706,12 @@ struct Data_lidar
   double value;
 };
 
-// struct Point_2D
-// {
-//   int i;
-//   int j;
-//   int cluster{0};
-// };
+struct Point_2D
+{
+  int i;
+  int j;
+  int cluster{0};
+};
 
 bool test(bool is_cool);
 

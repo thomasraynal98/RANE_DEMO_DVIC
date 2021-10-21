@@ -304,7 +304,7 @@ sio::message::ptr Robot_system::generate_data_lidar_for_server()
             }
             if(sample.angle > M_PI_2)
             {
-                new_angle = 180 - ( -sample.angle) + 90;
+                new_angle = M_PI - ( -sample.angle) + M_PI_2;
             }
             array_to_transmit->get_vector().push_back(sio::double_message::create(new_angle));
             array_to_transmit->get_vector().push_back(sio::double_message::create(sample.value));
@@ -493,6 +493,9 @@ void Robot_system::thread_COMMANDE(int frequency)
             /* Select current target keypoint and check if we reach them. */
             select_target_keypoint();
             cellIsReach();
+
+            /* Lidar integration. */
+            autonomous_nav_mode_lidar_integration();
 
             /* Check if destination keypoints is reach. 
             Else, compute motor commande. */
@@ -1073,7 +1076,10 @@ void Robot_system::thread_LIDAR(int frequency)
             //         scan.stamp,
             //         (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
             // fflush(stdout);
+            int pixel_x, pixel_y;
+
             data_lidar_sample.clear();
+            robot_sensor_data.lidar.dangerous_obstacle = false;
             for(auto point : scan.points)
             {
                 if(abs(point.angle)>M_PI_2)
@@ -1081,6 +1087,14 @@ void Robot_system::thread_LIDAR(int frequency)
                     Data_lidar observation;
                     observation.angle = -point.angle;
                     observation.value = point.range;
+
+                    pixel_x = sin(point.angle)*point.range*400/5+400;
+                    pixel_y = cos(point.angle)*point.range*400/5+400;
+                    if(robot_sensor_data.lidar.is_In_Security_zone(pixel_x, pixel_y))
+                    {
+                        robot_sensor_data.lidar.dangerous_obstacle = true;
+                    }
+
                     data_lidar_sample.push_back(observation);
                     // std::cout << "[" << point.angle*180/M_PI << "," << point.range << "\n"; 
                 }
@@ -2271,6 +2285,110 @@ void Robot_system::mode_checking()
     }
 }
 
+void Robot_system::autonomous_nav_mode_lidar_integration()
+{
+    /* DESCRIPTION:
+        this function is call in Thread_command just after the selection of target
+        Keypoint with SLAM PROCESS. This function will integrate the lidar data to
+        the navigation process.
+    */
+
+    /* Project Target Keypoint and next Keypoints on the lidar referencial. */
+
+    /* Detect if this Keypoints are blocked by lidar data. */
+
+    /* __ If(yes) transform brut lidar data to local grid map with optional resolution. */
+
+    /* __ If(yes) generate multi destination cell in local grip map. */
+
+    /* __ If(yes) run A* on this local grid map. */
+
+    /* __ __ If(yes) (A*=OK) compute Priority Alternative Target Keypoint with optional option. */
+
+    /* __ __ __ Remplace the actual Target Keypoint with PATKP.
+
+    /* __ __ If(yes) (A*=NON) stop robot for a moment. */
+}
+
+void Robot_system::project_keypoint_in_lidar_referencial()
+{
+    /* DESCRIPTION:
+        this function will take target keypoint in 5 meters range and project then in lidar
+        referencial.
+    */
+
+    /* Get keypoint in selection range. */
+    double kp_selection_range = 5.0; //m
+    std::vector<Path_keypoint*> keypoints_list_for_projection = get_kp_list(kp_selection_range);
+
+    /* Project them in lidar referencial. */
+    /* We need to change referencial angle. */
+    std::vector<Point_2D> projected_keypoint = transform_angle_in_lidar_ref(keypoints_list_for_projection);
+    
+}
+
+std::vector<Path_keypoint*> Robot_system::get_kp_list(double selection_range)
+{
+    /* DESCRIPTION:
+        this function will select KP in selection range and return pointor of this list.
+    */
+
+    std::vector<Path_keypoint*> result;
+    for(int i = 0; i < keypoints_path.size(); i++)
+    {
+        if(keypoints_path[i].distance_RKP <= selection_range)
+        {
+            result.push_back(&keypoints_path[i]);
+        }
+    }
+    return result;
+}
+
+std::vector<Point_2D> Robot_system::transform_angle_in_lidar_ref(std::vector<Path_keypoint*> keypoints_list_for_projection)
+{
+    /* DESCRIPTION:
+        this function will take a list of keypoint to project and transform the angle to be 
+        project into the lidar ref grid.
+    */
+
+    /* need this 2 value to determine orientation of angle. */
+    double angle_ORIENTATION = robot_position.pixel.y_pixel;
+    double angle_RKP;
+
+    double transform_angle;
+
+    std::vector<Point_2D> projected_keypoint;
+    for(int i = 0; i < keypoints_list_for_projection->size(); i++)
+    {
+        Point_2D projected_kp;
+        Pair keypoint_format_pair(keypoints_list_for_projection->at(i).first, keypoints_list_for_projection->at(i).second);
+        angle_RKP            = compute_vector_RKP(keypoint_format_pair);
+        
+        if(angle_ORIENTATION <= angle_RKP)
+        {
+            if(angle_RKP - angle_ORIENTATION <= 180)
+            {
+                // Right rotation or smooth.
+            }
+            else
+            {
+                // Left rotation or smooth.
+            }
+        }
+        else
+        {
+            if(angle_ORIENTATION - angle_RKP <= 180)
+            {
+                // Left rotation or smooth.
+            }
+            else
+            {
+                // Right rotation or smooth.
+            }
+        }
+    }
+}
+
 // FONCTION MOTOR.
 void Robot_system::compute_motor_autocommande()
 {
@@ -3441,6 +3559,22 @@ void Robot_system::debug_init_lidar()
     */
     cv::Mat interface_visuel(450, 800, CV_8UC3, cv::Scalar(255, 255, 255));
     cv::circle(interface_visuel, cv::Point(400,400),4, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
+
+    // Top Left Corner
+    cv::Point p1(int(400-(robot_sensor_data.lidar.largeur/200)*400/5), int(400-(((robot_sensor_data.lidar.longeur+robot_sensor_data.lidar.roue)/100)*400/5)));
+    robot_sensor_data.lidar.p1 = p1;
+  
+    // Bottom Right Corner
+    cv::Point p2(int(400+(robot_sensor_data.lidar.largeur/200)*400/5), int(400-(((robot_sensor_data.lidar.roue)/100)*400/5)));
+    robot_sensor_data.lidar.p2 = p2;
+  
+    int thickness = 1;
+  
+    // Drawing the Rectangle
+    cv::rectangle(interface_visuel, p1, p2,
+              cv::Scalar(0, 0, 255),
+              thickness, cv::LINE_8);
+
     debug_lidar = interface_visuel;
 }
 
@@ -3473,7 +3607,16 @@ void Robot_system::debug_lidar_interface(cv::Mat interface_visuel)
     // }
     // std::cout << point.angle << "," << point.value << " en pixel : " << pixel_x << "," << pixel_y << "\n";
     cv::circle(interface_visuel, cv::Point(pixel_x,pixel_y),1, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
+  } 
+ 
+    int thickness = 1;
+  if(robot_sensor_data.lidar.dangerous_obstacle)
+  {
+      thickness = -1;
   }
+  cv::rectangle(interface_visuel, robot_sensor_data.lidar.p1, robot_sensor_data.lidar.p2,
+              cv::Scalar(0, 0, 255),
+              thickness, cv::LINE_8);
 //   wall_detector(list_points, list_line_cluster);
 //   int color_compteur = 0;
 //   std::cout << "[LINE DETECTION]" << "\n";
