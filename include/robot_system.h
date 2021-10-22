@@ -54,6 +54,7 @@ class Robot_system
         std::vector<Point_2D> list_points;
         cv::Mat local_grid;
         cv::Mat copy_local_grid;
+        double angle_PATKP;
 
         // VARIABLE NAVIGATION.
         // TODO : bien décrire fonctionnement des variable en dessous.
@@ -207,7 +208,7 @@ class Robot_system
         // FONCTION MODE.
         void manual_mode_process();
         void mode_checking();
-        void autonomous_nav_mode_lidar_integration();
+        bool autonomous_nav_mode_lidar_integration();
         std::vector<Pair> generate_multi_destination(std::vector<Point_2D> projected_keypoint);
         std::vector<Point_2D> project_keypoint_in_lidar_referencial();
         std::vector<Path_keypoint*> get_kp_list(double selection_range);
@@ -216,12 +217,12 @@ class Robot_system
         cv::Mat update_local_grid(std::vector<Point_2D> projected_keypoint);
         void generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid);
         void select_PATKP(std::stack<Pair> Path);
-        void transform_lidarRef_to_globalRef(Pair point_lidarRef)
+        void transform_lidarRef_to_globalRef(Pair point_lidarRef);
 
         // FONCTION MOTOR.
         void secure_command_transmission();
         void compute_motor_autocommande();
-        void compute_motor_autocommandeNico();
+        void compute_motor_autocommandeNico(int option);
 
         // FONCTION DRAW ANALYSE / DEBUG
         void add_texte(cv::Mat image);

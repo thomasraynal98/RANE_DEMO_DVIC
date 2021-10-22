@@ -396,8 +396,8 @@ void Robot_system::thread_COMMANDE(int frequency)
         /* END TIMING VARIABLE. */
 
         /* Statue print. */
-        // std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
-        // "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
+        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
+        "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -417,7 +417,7 @@ void Robot_system::thread_COMMANDE(int frequency)
             if(parametre.map.StoredMapIsGood)
             {
                 // change_mode(Robot_state().takeoff);
-                change_mode(Robot_state().takeoff);
+                change_mode(Robot_state().waiting);
             }
             else
             {
@@ -479,7 +479,6 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
         }
         
-        autonomous_nav_mode_lidar_integration();
         if(robot_general_state == Robot_state().autonomous_nav)
         {   
             /*
@@ -497,7 +496,8 @@ void Robot_system::thread_COMMANDE(int frequency)
             cellIsReach();
 
             /* Lidar integration. */
-            autonomous_nav_mode_lidar_integration();
+            bool lidar_problem = false;
+            lidar_problem = autonomous_nav_mode_lidar_integration();
 
             /* Check if destination keypoints is reach. 
             Else, compute motor commande. */
@@ -516,9 +516,21 @@ void Robot_system::thread_COMMANDE(int frequency)
             }
             else
             { 
-                // compute_motor_autocommande();
-                compute_motor_autocommandeNico();
-            }       
+                if(lidar_problem)
+                {
+                    // compute_motor_autocommandeNico(1);
+                }
+                else
+                {
+                    // compute_motor_autocommandeNico(0);
+                }
+            }    
+
+            /* Security check. */
+            if(robot_sensor_data.lidar.dangerous_obstacle)
+            {
+                robot_control.manual_new_command(0, 3, 1);
+            }   
         }
         if(robot_general_state == Robot_state().home)
         {
@@ -897,12 +909,12 @@ void Robot_system::thread_SERVER_LISTEN(int frequency)
         // destination_point.first  = 96;
         // destination_point.second = 76;
 
-        // std::cout << "READ DESTINATION>";
-        // int rien;
-        // std::cin >> rien;
-        // destination_point.first  = 1032;
-        // destination_point.second = 793;
-        // change_mode(Robot_state().compute_nav);
+        std::cout << "READ DESTINATION>";
+        int rien;
+        std::cin >> rien;
+        destination_point.first  = 1032;
+        destination_point.second = 793;
+        change_mode(Robot_state().compute_nav);
 
         // std::cout << robot_general_state << std::endl;
         // robot_control.manual_commande_message = rien;
@@ -1093,6 +1105,8 @@ void Robot_system::thread_LIDAR(int frequency)
 
                     pixel_x = sin(-point.angle)*point.range*400/5+400;
                     pixel_y = cos(-point.angle)*point.range*400/5+400;
+
+                    // detect if they are a obstacle just in front of robot.
                     if(robot_sensor_data.lidar.is_In_Security_zone(pixel_x, pixel_y))
                     {
                         robot_sensor_data.lidar.dangerous_obstacle = true;
@@ -1545,7 +1559,7 @@ void Robot_system::init_thread_system()
     thread_10_last_hz_update  = std::chrono::high_resolution_clock::now();
 
     /* Setup all thread. */
-    // thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
+    thread_1_localisation     = std::thread(&Robot_system::thread_LOCALISATION  , this,  50);
     thread_2_commande         = std::thread(&Robot_system::thread_COMMANDE      , this, 100);
     thread_3_listener_MICROA  = std::thread(&Robot_system::thread_LISTENER      , this,  10, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
     thread_4_speaker_MICROA   = std::thread(&Robot_system::thread_SPEAKER       , this,  20, __serial_port_controle_A, std::ref(state_A_controler), controler_A_pong, "A"); 
@@ -1557,7 +1571,7 @@ void Robot_system::init_thread_system()
     thread_10_LIDAR           = std::thread(&Robot_system::thread_LIDAR         , this,  10); 
 
     /* Join all thread. */
-    // thread_1_localisation.join();
+    thread_1_localisation.join();
     thread_2_commande.join();
     thread_3_listener_MICROA.join();
     thread_4_speaker_MICROA.join();
@@ -2301,34 +2315,50 @@ void Robot_system::mode_checking()
     }
 }
 
-void Robot_system::autonomous_nav_mode_lidar_integration()
+bool Robot_system::autonomous_nav_mode_lidar_integration()
 {
     /* DESCRIPTION:
         this function is call in Thread_command just after the selection of target
         Keypoint with SLAM PROCESS. This function will integrate the lidar data to
         the navigation process.
+
+        OUTPUT: return false if lidar don't detect problem.
     */
 
     /* Project Target Keypoint and next Keypoints on the lidar referencial. */
-    std::vector<Point_2D> projected_keypoint;// = project_keypoint_in_lidar_referencial();
+    std::vector<Point_2D> projected_keypoint = project_keypoint_in_lidar_referencial();
 
     /* Detect if this Keypoints are blocked by lidar data. */
-    bool is_block = true;//= detect_path_obstruption(projected_keypoint);
+    bool is_block = detect_path_obstruption(projected_keypoint);
 
-    // REMOVE:
-    is_block = true;
-    if(is_block)
-    {
-        /* __ If(yes) transform brut lidar data to local grid map with optional resolution. */
-        cv::Mat current_lidar_grid = update_local_grid(projected_keypoint);
+    // if(is_block)
+    // {
+    //     /* __ If(yes) transform brut lidar data to local grid map with optional resolution. */
+    //     cv::Mat current_lidar_grid = update_local_grid(projected_keypoint);
 
-        /* __ If(yes) generate multi destination cell in local grip map. */
-        std::vector<Pair> list_destination;
-        list_destination = generate_multi_destination(projected_keypoint);
+    //     /* __ If(yes) generate multi destination cell in local grip map. */
+    //     std::vector<Pair> list_destination;
+    //     list_destination = generate_multi_destination(projected_keypoint);
 
-        /* __ If(yes) run A* on this local grid map. */
-        generate_PATKP(list_destination, current_lidar_grid);
-    }
+    //     /* __ If(yes) run A* on this local grid map. */
+    //     generate_PATKP(list_destination, current_lidar_grid);
+
+    //     // REMOVE:
+    //     if(true)
+    //     {   
+    //         for(auto pt : projected_keypoint)
+    //         {
+    //             cv::circle(copy_local_grid, cv::Point((int)(pt.i),(int)(pt.j)),0, cv::Scalar(255,0,0), cv::FILLED, 0, 0);
+    //         }
+    //         cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+    //         cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+    //         cv::imshow("test", copy_local_grid);
+    //         char d=(char)cv::waitKey(25);
+    //     }
+        
+    //     return true;
+    // }
+    return false;
 }
 
 void Robot_system::select_PATKP(std::stack<Pair> Path)
@@ -2345,6 +2375,13 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
         Path.pop();
 
         vector_global_path.push_back(p);
+
+        // REMOVE: debug interface
+        if(true)
+        {
+            // test.
+            cv::circle(copy_local_grid, cv::Point((int)(p.first),(int)(p.second)),0, cv::Scalar(0,255,0), cv::FILLED, 0, 0);
+        }
     }
 
     /* Now, choose a KP in this list and transform to PATKP. */
@@ -2355,6 +2392,16 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
     my_pt.first = (int)(((my_pt.first*16)+((my_pt.first+1)*16))/2);
     my_pt.first = (int)(((my_pt.second*16)+((my_pt.second+1)*16))/2);
     
+    // REMOVE: debug interface
+    if(true)
+    {
+        cv::circle(copy_local_grid, cv::Point((int)(my_pt.first),(int)(my_pt.second)),0, cv::Scalar(255,100,50), cv::FILLED, 0, 0);
+        // cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+        // cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+        // cv::imshow("test", copy_local_grid);
+        // char d=(char)cv::waitKey(25);
+    }
+
     transform_lidarRef_to_globalRef(my_pt);
 }
 
@@ -2362,8 +2409,13 @@ void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
 {
     /* DESCRIPTION:
         this function will take the PATKP and transform it to global ref
-        for motor control descision.
+        for motor control descision. (plus vraiment)
     */
+
+    int index_i = point_lidarRef.first - 400;
+    int index_j = 400 - point_lidarRef.second;
+
+    angle_PATKP = atan(index_j/index_i); //in rad (-PI to PI)
 }
 
 void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid)
@@ -2373,15 +2425,18 @@ void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat cu
         Target Keypoint.
     */
 
-    Pair source;
-    source.first  = 24;
-    source.second = 24;
+    if(list_destination.size() != 0)
+    {
+        Pair source;
+        source.first  = 24;
+        source.second = 24;
 
-    Pair destination;
-    destination.first  = list_destination[0].first;
-    destination.second = list_destination[0].second;
+        Pair destination;
+        destination.first  = list_destination[0].first;
+        destination.second = list_destination[0].second;
 
-    aStarSearch(current_lidar_grid, source, destination, 1);
+        aStarSearch(current_lidar_grid, source, destination, 1);
+    }
 }
 
 std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D> projected_keypoint)
@@ -2466,20 +2521,20 @@ cv::Mat Robot_system::update_local_grid(std::vector<Point_2D> projected_keypoint
     */
 
     copy_local_grid = local_grid.clone();
-    for(auto kp : projected_keypoint)
-    {
-        cv::circle(copy_local_grid, cv::Point((int)(kp.i/16),(int)(kp.j/16)),0, cv::Scalar(0,0,0), cv::FILLED, 0, 0);
-    }
+    // for(auto kp : projected_keypoint)
+    // {
+    //     cv::circle(copy_local_grid, cv::Point((int)(kp.i/16),(int)(kp.j/16)),1, cv::Scalar(0,0,0), cv::FILLED, 0, 0);
+    // }
     for(auto pt : list_points)
     {
         cv::circle(copy_local_grid, cv::Point((int)(pt.i/16),(int)(pt.j/16)),0, cv::Scalar(0,0,0), cv::FILLED, 0, 0);
     }
 
-    // test.
-    cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-    cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-    cv::imshow("test", copy_local_grid);
-    char d=(char)cv::waitKey(25);
+    // test. REMOVE:
+    // cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+    // cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+    // cv::imshow("test", copy_local_grid);
+    // char d=(char)cv::waitKey(25);
 	    // if(d==27)
 	    //   break;
 
@@ -2494,19 +2549,25 @@ bool Robot_system::detect_path_obstruption(std::vector<Point_2D> projected_keypo
 
     cv::Mat image_with_big_point = debug_lidar.clone();
 
+    std::cout << "[DEBUG]:" << image_with_big_point.rows << "\n";
+
+    // lidar data.
     for(auto point : list_points)
     {
         cv::circle(image_with_big_point, cv::Point(point.i,point.j),10, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
     } 
 
     for(auto kp : projected_keypoint)
-    {
-        cv::Vec3b bgrPixel = image_with_big_point.at<cv::Vec3b>(kp.i, kp.j);
-        if(bgrPixel.val[0] != 255 || bgrPixel.val[1] != 255 || bgrPixel.val[2] != 255)
+    {   
+        std::cout << "point:" << kp.i << " ," << kp.j << " \n";
+        cv::Vec3b pixelColor = image_with_big_point.at<cv::Vec3b>(kp.j, kp.i);
+        if(pixelColor.val[0] != 255 || pixelColor.val[1] != 255 || pixelColor.val[2] != 255)
         {
             return true;
         }
     }
+    std::cout << "[DEBUGEND]:" << image_with_big_point.rows << "\n";
+ 
     return false;
 }
 
@@ -2604,12 +2665,12 @@ std::vector<Point_2D> Robot_system::transform_angle_in_lidar_ref(std::vector<Pat
         if(i == keypoints_list_for_projection.size())
         {
             projected_kp.i = sin(angle_RKP)*target_keypoint->distance_RKP*400/5+400;
-            projected_kp.i = cos(angle_RKP)*target_keypoint->distance_RKP*400/5+400;
+            projected_kp.j = cos(angle_RKP)*target_keypoint->distance_RKP*400/5+400;
         }
         if(i != keypoints_list_for_projection.size())
         {
             projected_kp.i = sin(angle_RKP)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
-            projected_kp.i = cos(angle_RKP)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
+            projected_kp.j = cos(angle_RKP)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
         }
         
         projected_keypoint.push_back(projected_kp);
@@ -2680,13 +2741,19 @@ void Robot_system::compute_motor_autocommande()
     }
 }
 
-void Robot_system::compute_motor_autocommandeNico()
+void Robot_system::compute_motor_autocommandeNico(int option)
 {
     /*
         DESCRIPTION: http://faculty.salina.k-state.edu/tim/robot_prog/MobileBot/Steering/pointFwd.html
     */
-    double angle_ORIENTATION = robot_position.pixel.y_pixel;
-    double angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
+    double angle_ORIENTATION;
+    double angle_RKP;
+
+    if(option == 0)
+    {
+        angle_ORIENTATION = robot_position.pixel.y_pixel;
+        angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
+    }
     /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
     like speed or area type. */
     // TODO: influencer par distance de validation
@@ -2699,9 +2766,18 @@ void Robot_system::compute_motor_autocommandeNico()
     /* target_angle variable is good but is it between 0 and 180 degres.
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
-    double alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
-    alpha += M_PI;
-    alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
+    double alpha;
+
+    if(option == 0)
+    {
+        alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
+        alpha += M_PI;
+        alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
+    }
+    if(option == 1)
+    {
+        alpha = angle_PATKP;
+    }
     // we don't have sensors behind so don't move backwards
     // if (abs(alpha)>back_angle){
     //     F = 0;
