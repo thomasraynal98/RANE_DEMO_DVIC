@@ -54,6 +54,8 @@ class Robot_system
         std::vector<Point_2D> list_points;
         cv::Mat local_grid;
         cv::Mat copy_local_grid;
+        cv::Mat local_grey_grid;
+        cv::Mat copy_local_grey_grid;
         double angle_PATKP;
 
         // VARIABLE NAVIGATION.
