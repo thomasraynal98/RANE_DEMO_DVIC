@@ -248,6 +248,7 @@ class Robot_system
         void change_mode(std::__cxx11::string& state);
         static void my_handler(int var);
         int test();
+        void print_status();
 
         // THREAD.
         void thread_LOCALISATION(int frequency);

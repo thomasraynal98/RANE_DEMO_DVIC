@@ -395,9 +395,8 @@ void Robot_system::thread_COMMANDE(int frequency)
         std::this_thread::sleep_until(next);
         /* END TIMING VARIABLE. */
 
-        /* Statue print. */
-        std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
-        "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
+        /* Status print. */
+        print_status();
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -477,8 +476,7 @@ void Robot_system::thread_COMMANDE(int frequency)
                 /* We get a problem on path planning process. */
                 change_mode(Robot_state().warning);
             }
-        }
-        
+        }      
         if(robot_general_state == Robot_state().autonomous_nav)
         {   
             /*
@@ -508,11 +506,11 @@ void Robot_system::thread_COMMANDE(int frequency)
                 /* note: pas obliger de le faire pour le cas ou autonomous_nav_option
                 vaut 0 car dans destination_reach() il passe automatiquement en mode
                 waiting. */
-                if(autonomous_nav_option == 1)
-                {   
-                    /* We reach the point d'approche. */
-                    change_mode(Robot_state().approach);
-                }
+                // if(autonomous_nav_option == 1)
+                // {   
+                //     /* We reach the point d'approche. */
+                //     change_mode(Robot_state().approach);
+                // }
             }
             else
             { 
@@ -969,10 +967,6 @@ void Robot_system::thread_SERVER_SPEAKER(int frequency)
 void Robot_system::thread_LIDAR(int frequency)
 {
     /* DESCRIPTION:
-        this thread allow the data recuperation of lidar sensor.
-    */
-
-    /* DESCRIPTION:
         this function will init all lidar variable.
         1. check one by one the port to detect lidar.
     */
@@ -981,7 +975,7 @@ void Robot_system::thread_LIDAR(int frequency)
     CYdLidar laser;
 
     int i = 0;
-    // TODO : step 1.
+    // INIT THREAD PART.
     while(i<5)
     {
 
@@ -1080,46 +1074,50 @@ void Robot_system::thread_LIDAR(int frequency)
         }
     }
 
-    //
+    // MAIN THREAD PART.
     while (robot_sensor_data.lidar.ret && ydlidar::os_isOk()) 
     {
         LaserScan scan;
         if (robot_sensor_data.lidar.laser->doProcessSimple(scan)) 
         {
-            // fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n",
-            //         scan.stamp,
-            //         (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
-            // fflush(stdout);
             int pixel_x, pixel_y;
 
+            /* Clean variable. */
             data_lidar_sample.clear();
             list_points.clear();
             robot_sensor_data.lidar.dangerous_obstacle = false;
+
+            /* Run all sample. */
             for(auto point : scan.points)
             {
+                /* Only take the no obstruted data. */
                 if(abs(point.angle)>M_PI_2)
                 {
+                    /* Init observation variable. */
                     Data_lidar observation;
-                    observation.angle = -point.angle;
-                    observation.value = point.range;
+                    observation.angle = -point.angle; // rad [0,2PI]
+                    observation.value = point.range;  // meter 
 
+                    /* Project brut data into lidar referencial grid. */
                     pixel_x = sin(-point.angle)*point.range*400/5+400;
                     pixel_y = cos(-point.angle)*point.range*400/5+400;
-
-                    // detect if they are a obstacle just in front of robot.
-                    if(robot_sensor_data.lidar.is_In_Security_zone(pixel_x, pixel_y))
-                    {
-                        robot_sensor_data.lidar.dangerous_obstacle = true;
-                    }
-                    
-                    data_lidar_sample.push_back(observation);
 
                     Point_2D pt_observation;
                     pt_observation.i = pixel_x;
                     pt_observation.j = pixel_y;
+                    
+                    /* detect if they are a obstacle just in front of robot. */
+                    if(robot_sensor_data.lidar.is_In_Security_zone(pixel_x, pixel_y))
+                    {
+                        robot_sensor_data.lidar.dangerous_obstacle = true;
+                    }
 
-                    list_points.push_back(pt_observation);
-                    // std::cout << "[" << point.angle << "," << point.range << "\n"; 
+                    /* push the sample if they are in good. */
+                    if(observation.value > 0.05 && observation.value < 10)
+                    {
+                        data_lidar_sample.push_back(observation);
+                        list_points.push_back(pt_observation);
+                    }
                 }
             }
         } 
@@ -2328,42 +2326,46 @@ bool Robot_system::autonomous_nav_mode_lidar_integration()
     /* Project Target Keypoint and next Keypoints on the lidar referencial. */
     std::vector<Point_2D> projected_keypoint = project_keypoint_in_lidar_referencial();
 
-    /* Detect if this Keypoints are blocked by lidar data. */
-    bool is_block = detect_path_obstruption(projected_keypoint);
+    if(projected_keypoint.size() > 0)
+    {   
 
-    if(true)
-    {
-        /* __ If(yes) transform brut lidar data to local grid map with optional resolution. return to visualise debug. */
-        cv::Mat current_lidar_grid = update_local_grid(projected_keypoint);
+        /* Detect if this Keypoints are blocked by lidar data. */
+        bool is_block = detect_path_obstruption(projected_keypoint);
 
-        /* __ If(yes) generate multi destination cell in local grip map. */
-        std::vector<Pair> list_destination;
-        list_destination = generate_multi_destination(projected_keypoint);
+        if(true)
+        {
+            /* __ If(yes) transform brut lidar data to local grid map with optional resolution. return to visualise debug. */
+            cv::Mat current_lidar_grid = update_local_grid(projected_keypoint);
 
-        // std::cout << "taille:" << list_destination.size() << " point(" << list_destination[0].first << "," << list_destination[0].second << ")\n";
-        // cv::circle(current_lidar_grid, cv::Point((int)(list_destination[0].first),(int)(list_destination[0].second)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
-        // cv::resize(current_lidar_grid, current_lidar_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-        // cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-        // cv::imshow("test", current_lidar_grid);
-        // char d=(char)cv::waitKey(25);
+            /* __ If(yes) generate multi destination cell in local grip map. */
+            std::vector<Pair> list_destination;
+            list_destination = generate_multi_destination(projected_keypoint);
 
-        /* __ If(yes) run A* on this local grid map. */
-        generate_PATKP(list_destination, copy_local_grey_grid);
+            // std::cout << "taille:" << list_destination.size() << " point(" << list_destination[0].first << "," << list_destination[0].second << ")\n";
+            // cv::circle(current_lidar_grid, cv::Point((int)(list_destination[0].first),(int)(list_destination[0].second)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
+            // cv::resize(current_lidar_grid, current_lidar_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+            // cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+            // cv::imshow("test", current_lidar_grid);
+            // char d=(char)cv::waitKey(25);
 
-    //     // REMOVE:
-    //     if(true)
-    //     {   
-    //         for(auto pt : projected_keypoint)
-    //         {
-    //             cv::circle(copy_local_grid, cv::Point((int)(pt.i),(int)(pt.j)),0, cv::Scalar(255,0,0), cv::FILLED, 0, 0);
-    //         }
-    //         cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-    //         cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-    //         cv::imshow("test", copy_local_grid);
-    //         char d=(char)cv::waitKey(25);
-    //     }
-        
-    //     return true;
+            /* __ If(yes) run A* on this local grid map. */
+            generate_PATKP(list_destination, copy_local_grey_grid);
+
+        //     // REMOVE:
+        //     if(true)
+        //     {   
+        //         for(auto pt : projected_keypoint)
+        //         {
+        //             cv::circle(copy_local_grid, cv::Point((int)(pt.i),(int)(pt.j)),0, cv::Scalar(255,0,0), cv::FILLED, 0, 0);
+        //         }
+        //         cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+        //         cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+        //         cv::imshow("test", copy_local_grid);
+        //         char d=(char)cv::waitKey(25);
+        //     }
+            
+            return true;
+        }
     }
     return false;
 }
@@ -2375,6 +2377,7 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
         and will generate a PATKP.
     */
 
+    // classic go through A* result.
     std::vector<Pair> vector_global_path;
     while(!Path.empty())
     {
@@ -2383,7 +2386,7 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
 
         vector_global_path.push_back(p);
 
-        // REMOVE: debug interface
+        // REMOVE: debug interface, draw all the A* local path.
         if(true)
         {
             // test.
@@ -2393,12 +2396,11 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
 
     /* Now, choose a KP in this list and transform to PATKP. */
     // one cell = 20 cm.
-    int number = 7; //1.50m
-
+    int number = 5; //1.00m
     Pair my_pt = vector_global_path[number];
-    // my_pt.first = (int)(((my_pt.first*16)+((my_pt.first+1)*16))/2);
-    // my_pt.second = (int)(((my_pt.second*16)+((my_pt.second+1)*16))/2);
-    my_pt.first = (int)(((my_pt.first*16)));
+
+    // convert LOW resolution map into High resolution.
+    my_pt.first  = (int)(((my_pt.first*16)));
     my_pt.second = (int)(((my_pt.second*16)));
     
     // REMOVE: debug interface
@@ -2431,6 +2433,8 @@ void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
         index_i = 0.01;
         angle_PATKP = atan(index_j/index_i);
     }
+
+    std::cout << "[TRY TEST]=" << angle_PATKP << "\n";
 }
 
 void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid)
@@ -2463,24 +2467,27 @@ std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D>
     */
 
     double more_far_distance = 0;
+    double distance_LKP = 0; // distance Lidar <-> KeyPoint.
     Pair destination_cell(-1,-1);
     std::vector<Pair> list_destination_cell;
 
     for(auto kp : projected_keypoint)
     {
+        distance_LKP = pow(pow(24-(kp.i/16),2)+pow(24-(kp.j/16),2),0.5);
+
         // the far one but visible on local grid.
-        if(pow(pow(24-(kp.i/16),2)+pow(24-(kp.j/16),2),0.5) > more_far_distance && (kp.i >= 0 && kp.i < 800) && (kp.j >= 0 && kp.j < 400))
+        if(distance_LKP > more_far_distance && (kp.i >= 0 && kp.i < 800) && (kp.j >= 0 && kp.j < 400))
         {
             destination_cell.first  = kp.i;
             destination_cell.second = kp.j;
-            more_far_distance = pow(pow(24-(kp.i/16),2)+pow(24-(kp.j/16),2),0.5);
+            more_far_distance = distance_LKP;
         }
     }
 
     /* Now detect category : Front, Left, Right, Back, End */
 
     // end.
-    if(destination_cell.first < 700 && destination_cell.first > 100 && destination_cell.second > 100 && destination_cell.second < 300)
+    if(destination_cell.first < 650 && destination_cell.first > 150 && destination_cell.second > 125 && destination_cell.second < 275)
     {
         Pair cell;
         cell.first    = (int)(destination_cell.first/16);
@@ -2489,7 +2496,7 @@ std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D>
     }
 
     // front.
-    if(destination_cell.first > 0 && destination_cell.first < 800 && destination_cell.second > 0 && destination_cell.second < 100)
+    if(destination_cell.first > 0 && destination_cell.first < 800 && destination_cell.second > 0 && destination_cell.second < 125)
     {
         Pair cell;
         cell.first    = (int)(destination_cell.first/16);
@@ -2498,7 +2505,7 @@ std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D>
     }
 
     // back.
-    if(destination_cell.first > 0 && destination_cell.first < 800 && destination_cell.second > 300 && destination_cell.second < 400)
+    if(destination_cell.first > 0 && destination_cell.first < 800 && destination_cell.second > 275 && destination_cell.second < 400)
     {
         Pair cell;
         cell.first    = (int)(destination_cell.first/16);
@@ -2507,7 +2514,7 @@ std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D>
     }
 
     // left.
-    if(destination_cell.first > 0 && destination_cell.first < 100 && destination_cell.second > 0 && destination_cell.second < 400)
+    if(destination_cell.first > 0 && destination_cell.first < 150 && destination_cell.second > 0 && destination_cell.second < 400)
     {
         Pair cell;
         cell.first    = (int)(0);
@@ -2516,7 +2523,7 @@ std::vector<Pair> Robot_system::generate_multi_destination(std::vector<Point_2D>
     }
 
     // right.
-    if(destination_cell.first > 700 && destination_cell.first < 800 && destination_cell.second > 0 && destination_cell.second < 400)
+    if(destination_cell.first > 650 && destination_cell.first < 800 && destination_cell.second > 0 && destination_cell.second < 400)
     {
         Pair cell;
         cell.first    = (int)(49);
@@ -2537,10 +2544,10 @@ cv::Mat Robot_system::update_local_grid(std::vector<Point_2D> projected_keypoint
         this function will update the local grid map for futur path planning process.
     */
 
-    // for visual debug
+    // REMOVE: for visual debug
     copy_local_grid = local_grid.clone();
 
-    // for A*
+    // for A* process
     copy_local_grey_grid = local_grey_grid.clone();
 
     // REMOVE: debug
@@ -2550,10 +2557,11 @@ cv::Mat Robot_system::update_local_grid(std::vector<Point_2D> projected_keypoint
     // }
     // cv::circle(copy_local_grid, cv::Point((int)(projected_keypoint.back().i/16),(int)(projected_keypoint.back().j/16)),0, cv::Scalar(255,0,0), cv::FILLED, 0, 0);
 
+    // Draw point on the LLG.
     for(auto pt : list_points)
     {
         cv::circle(copy_local_grid, cv::Point((int)(pt.i/16),(int)(pt.j/16)),0, cv::Scalar(0,0,0), cv::FILLED, 0, 0);
-        cv::circle(copy_local_grey_grid, cv::Point((int)(pt.i/16),(int)(pt.j/16)),1, cv::Scalar(0), cv::FILLED, 0, 0);
+        cv::circle(copy_local_grey_grid, cv::Point((int)(pt.i/16),(int)(pt.j/16)),2, cv::Scalar(0), cv::FILLED, 0, 0);
     }
 
     // test. REMOVE:
@@ -2569,37 +2577,42 @@ bool Robot_system::detect_path_obstruption(std::vector<Point_2D> projected_keypo
 {
     /* DESCRIPTION:
         this function will detect if keypoint are blocked by lidar keypoint.
+        to do that we will create a LLG copy and print in big size the lidar point.
+        after we check if the keypoint are located on this point.
     */
 
     cv::Mat image_with_big_point = debug_lidar.clone();
 
-    // lidar data.
+    // add lidar data on the LLG copy.
     for(auto point : list_points)
     {
         cv::circle(image_with_big_point, cv::Point(point.i,point.j),10, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
     } 
 
+    // check if the projected_keypoint are located on the big point.
     for(auto kp : projected_keypoint)
     {   
         cv::Vec3b pixelColor = image_with_big_point.at<cv::Vec3b>(kp.j, kp.i);
         if(pixelColor.val[0] != 255 || pixelColor.val[1] != 255 || pixelColor.val[2] != 255)
-        {
+        {   
+            // we detect lidar data obstacle on the way of robot.
             return true;
         }
     }
- 
+    
+    /* We didn't detect obstacle. No need lidar process for this frame. */
     return false;
 }
 
 std::vector<Point_2D> Robot_system::project_keypoint_in_lidar_referencial()
 {
     /* DESCRIPTION:
-        this function will take target keypoint in 5 meters range and project then in lidar
+        this function will take target keypoint in 6 meters range and project then in lidar
         referencial.
     */
 
     /* Get keypoint in selection range. */
-    double kp_selection_range = 5.0; //m
+    double kp_selection_range = 6.0; //m
     std::vector<Path_keypoint*> keypoints_list_for_projection = get_kp_list(kp_selection_range);
 
     /* Project them in lidar referencial. The target KP to. */
@@ -2639,98 +2652,108 @@ std::vector<Point_2D> Robot_system::transform_angle_in_lidar_ref(std::vector<Pat
 
     /* project keypoints. */
     std::vector<Point_2D> projected_keypoint;
-    for(int i = 0; i < keypoints_list_for_projection.size()+1; i++)
+
+    /* do all process if keypoints_list_for_projection is not empty. */
+    if(keypoints_list_for_projection.size() > 0)
     {
-        Point_2D projected_kp;
+        for(int i = 0; i < keypoints_list_for_projection.size()+1; i++)
+        {
+            /* init the keypoint. */
+            Point_2D projected_kp;
 
-        /* put the target keypoint at the end of this list. */
-        if(i == keypoints_list_for_projection.size())
-        {
-            Pair keypoint_format_pair(target_keypoint->coordinate.first, target_keypoint->coordinate.second);
-            angle_RKP            = compute_vector_RKP(keypoint_format_pair);
-        }
-        else
-        {
-            Pair keypoint_format_pair(keypoints_list_for_projection[i]->coordinate.first, keypoints_list_for_projection[i]->coordinate.second);
-            angle_RKP            = compute_vector_RKP(keypoint_format_pair);
-        }
-        
-        if( i != keypoints_list_for_projection.size() )
-        {
-            if(angle_ORIENTATION <= angle_RKP)
+            /* put the target keypoint at the end of this list. */
+            /* compuute angle_RKP to now the direction, left or right. */
+            if(i == keypoints_list_for_projection.size())
             {
-                if(angle_RKP - angle_ORIENTATION <= 180)
+                Pair keypoint_format_pair(target_keypoint->coordinate.first, target_keypoint->coordinate.second);
+                angle_RKP            = compute_vector_RKP(keypoint_format_pair);
+            }
+            else
+            {
+                Pair keypoint_format_pair(keypoints_list_for_projection[i]->coordinate.first, keypoints_list_for_projection[i]->coordinate.second);
+                angle_RKP            = compute_vector_RKP(keypoint_format_pair);
+            }
+            
+            if( i != keypoints_list_for_projection.size() )
+            {
+                if(angle_ORIENTATION <= angle_RKP)
                 {
-                    // Right 
-                    angle_RKP    = (180 - keypoints_list_for_projection[i]->target_angle);
+                    if(angle_RKP - angle_ORIENTATION <= 180)
+                    {
+                        // Right 
+                        angle_RKP    = (180 - keypoints_list_for_projection[i]->target_angle);
+                    }
+                    else
+                    {
+                        // Left 
+                        angle_RKP    = -180 + keypoints_list_for_projection[i]->target_angle;
+                    }
                 }
                 else
                 {
-                    // Left 
-                    angle_RKP    = -180 + keypoints_list_for_projection[i]->target_angle;
+                    if(angle_ORIENTATION - angle_RKP <= 180)
+                    {
+                        // Left 
+                        angle_RKP    = -180 + keypoints_list_for_projection[i]->target_angle;
+                    }
+                    else
+                    {
+                        // Right 
+                        angle_RKP    = (180 - keypoints_list_for_projection[i]->target_angle);
+                    }
                 }
             }
             else
             {
-                if(angle_ORIENTATION - angle_RKP <= 180)
+                if(angle_ORIENTATION <= angle_RKP)
                 {
-                    // Left 
-                    angle_RKP    = -180 + keypoints_list_for_projection[i]->target_angle;
+                    if(angle_RKP - angle_ORIENTATION <= 180)
+                    {
+                        // Right 
+                        angle_RKP    = 180 - target_keypoint->target_angle;
+                    }
+                    else
+                    {
+                        // Left 
+                        angle_RKP    = (-180) + target_keypoint->target_angle;
+                    }
                 }
                 else
                 {
-                    // Right 
-                    angle_RKP    = (180 - keypoints_list_for_projection[i]->target_angle);
+                    if(angle_ORIENTATION - angle_RKP <= 180)
+                    {
+                        // Left 
+                        angle_RKP    = (-180) + target_keypoint->target_angle;
+                    }
+                    else
+                    {
+                        // Right 
+                        angle_RKP    = 180 - target_keypoint->target_angle;
+                    }
                 }
             }
-        }
-        else
-        {
-            if(angle_ORIENTATION <= angle_RKP)
-            {
-                if(angle_RKP - angle_ORIENTATION <= 180)
-                {
-                    // Right 
-                    angle_RKP    = 180 - target_keypoint->target_angle;
-                }
-                else
-                {
-                    // Left 
-                    angle_RKP    = (-180) + target_keypoint->target_angle;
-                }
-            }
-            else
-            {
-                if(angle_ORIENTATION - angle_RKP <= 180)
-                {
-                    // Left 
-                    angle_RKP    = (-180) + target_keypoint->target_angle;
-                }
-                else
-                {
-                    // Right 
-                    angle_RKP    = 180 - target_keypoint->target_angle;
-                }
-            }
-        }
 
-        if(i == keypoints_list_for_projection.size())
-        {
-            projected_kp.i = sin(angle_RKP*M_PI/180)*target_keypoint->distance_RKP*400/5+400;
-            projected_kp.j = cos(angle_RKP*M_PI/180)*target_keypoint->distance_RKP*400/5+400;
-
-            if(abs(target_keypoint->target_angle) <= 90)
+            if(i == keypoints_list_for_projection.size())
             {
-                projected_keypoint.push_back(projected_kp);
+                /* only project the point in front of robot. */
+                if(abs(target_keypoint->target_angle) <= 90)
+                {
+                    /* project the keypoint into the lidar local grid referencial (LLG). */
+                    projected_kp.i = sin(angle_RKP*M_PI/180)*target_keypoint->distance_RKP*400/5+400;
+                    projected_kp.j = cos(angle_RKP*M_PI/180)*target_keypoint->distance_RKP*400/5+400;
+                    projected_keypoint.push_back(projected_kp);
+                }
             }
-        }
-        if(i != keypoints_list_for_projection.size())
-        {
-            if(abs(keypoints_list_for_projection[i]->target_angle) <= 90)
-            {
-                projected_kp.i = sin(angle_RKP*M_PI/180)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
-                projected_kp.j = cos(angle_RKP*M_PI/180)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
-                projected_keypoint.push_back(projected_kp);
+            if(i != keypoints_list_for_projection.size())
+            {   
+                /* only project the point in front of robot. */
+                if(abs(keypoints_list_for_projection[i]->target_angle) <= 90)
+                {
+                    /* project the keypoint into the LLG referencial. */
+                    projected_kp.i = sin(angle_RKP*M_PI/180)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
+                    projected_kp.j = cos(angle_RKP*M_PI/180)*keypoints_list_for_projection[i]->distance_RKP*400/5+400;
+                    projected_keypoint.push_back(projected_kp);
+                }
             }
         }
     }
@@ -2946,6 +2969,16 @@ void Robot_system::my_handler(int i) {
     std::cout << "[CONTROL-C EVENT - ALL ACTIONNEUR SHUT DOWN.] \n Good night robot...";
 
     exit(i);
+}
+
+void Robot_system::print_status()
+{
+    /* DESCRIPTION:
+        print all status about system for terminal debug.
+    */
+
+    std::cout << "[ROBOT_STATE:" << robot_general_state << "] [LAST_COMMAND:"<< robot_control.manual_commande_message << \
+        "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 }
 
 // THREAD ANALYSER DEBUG.
