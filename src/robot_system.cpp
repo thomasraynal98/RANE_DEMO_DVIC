@@ -396,7 +396,7 @@ void Robot_system::thread_COMMANDE(int frequency)
         /* END TIMING VARIABLE. */
 
         /* Status print. */
-        print_status();
+        // print_status();
 
         /* List of process to do before each action. */
         from_3DW_to_2DM();
@@ -2393,10 +2393,9 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
             cv::circle(copy_local_grid, cv::Point((int)(p.first),(int)(p.second)),0, cv::Scalar(0,255,0), cv::FILLED, 0, 0);
         }
     }
-
     /* Now, choose a KP in this list and transform to PATKP. */
     // one cell = 20 cm.
-    int number = 5; //1.00m
+    int number = 3; //0.60m
     Pair my_pt = vector_global_path[number];
 
     // convert LOW resolution map into High resolution.
@@ -2404,14 +2403,14 @@ void Robot_system::select_PATKP(std::stack<Pair> Path)
     my_pt.second = (int)(((my_pt.second*16)));
     
     // REMOVE: debug interface
-    if(true)
-    {
-        cv::circle(copy_local_grid, cv::Point((int)(my_pt.first/16),(int)(my_pt.second/16)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
-        cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-        cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-        cv::imshow("test", copy_local_grid);
-        char d=(char)cv::waitKey(25);
-    }
+    // if(true)
+    // {
+    //     cv::circle(copy_local_grid, cv::Point((int)(my_pt.first/16),(int)(my_pt.second/16)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
+    //     cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+    //     cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+    //     cv::imshow("test", copy_local_grid);
+    //     char d=(char)cv::waitKey(25);
+    // }
 
     transform_lidarRef_to_globalRef(my_pt);
 }
@@ -2427,14 +2426,22 @@ void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
     int index_j = 400 - point_lidarRef.second;
 
     // division par zeros.
-    if(index_i != 0) { angle_PATKP = atan(index_j/index_i);} //in rad (-PI to PI)
+    if(index_i != 0) { angle_PATKP = atan((double)(index_j)/(double)(index_i));} //in rad (-PI to PI)
     else
     {
         index_i = 0.01;
-        angle_PATKP = atan(index_j/index_i);
+        angle_PATKP = atan((double)(index_j)/(double)(index_i));
     }
-
     std::cout << "[TRY TEST]=" << angle_PATKP << "\n";
+
+    if(true)
+    {
+        cv::circle(copy_local_grid, cv::Point((int)(point_lidarRef.first/16),(int)(point_lidarRef.second/16)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
+        cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+        cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
+        cv::imshow("test", copy_local_grid);
+        char d=(char)cv::waitKey(25);
+    }
 }
 
 void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid)
@@ -2454,8 +2461,10 @@ void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat cu
         destination.first  = list_destination[0].first;
         destination.second = list_destination[0].second;
 
-        // but we need to transpose the RGB matrice to a Gray matrice.
-
+        // secure clean current_lidar_grid.
+            // cv::resize(current_lidar_grid, current_lidar_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
+            // cv::namedWindow("teFst",cv::WINDOW_AUTOSIZE);
+            // cv::imshow("teFst", current_lidar_grid);
         aStarSearch(current_lidar_grid, source, destination, 1);
     }
 }
@@ -2586,13 +2595,14 @@ bool Robot_system::detect_path_obstruption(std::vector<Point_2D> projected_keypo
     // add lidar data on the LLG copy.
     for(auto point : list_points)
     {
-        cv::circle(image_with_big_point, cv::Point(point.i,point.j),10, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
+        cv::circle(image_with_big_point, cv::Point((int)(point.i),(int)(point.j)),10, cv::Scalar(0,0,0), cv::FILLED, 1, 0);
     } 
 
     // check if the projected_keypoint are located on the big point.
     for(auto kp : projected_keypoint)
     {   
-        cv::Vec3b pixelColor = image_with_big_point.at<cv::Vec3b>(kp.j, kp.i);
+        cv::Vec3b pixelColor = image_with_big_point.at<cv::Vec3b>((int)(kp.j), (int)(kp.i));
+
         if(pixelColor.val[0] != 255 || pixelColor.val[1] != 255 || pixelColor.val[2] != 255)
         {   
             // we detect lidar data obstacle on the way of robot.
@@ -2612,7 +2622,7 @@ std::vector<Point_2D> Robot_system::project_keypoint_in_lidar_referencial()
     */
 
     /* Get keypoint in selection range. */
-    double kp_selection_range = 6.0; //m
+    double kp_selection_range = 5.0; //m
     std::vector<Path_keypoint*> keypoints_list_for_projection = get_kp_list(kp_selection_range);
 
     /* Project them in lidar referencial. The target KP to. */
