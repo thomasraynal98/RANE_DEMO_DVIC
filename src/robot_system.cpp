@@ -516,11 +516,11 @@ void Robot_system::thread_COMMANDE(int frequency)
             { 
                 if(lidar_problem)
                 {
-                    // compute_motor_autocommandeNico(1);
+                    compute_motor_autocommandeNico(1);
                 }
                 else
                 {
-                    // compute_motor_autocommandeNico(0);
+                    compute_motor_autocommandeNico(0);
                 }
             }    
 
@@ -2326,50 +2326,35 @@ bool Robot_system::autonomous_nav_mode_lidar_integration()
     /* Project Target Keypoint and next Keypoints on the lidar referencial. */
     std::vector<Point_2D> projected_keypoint = project_keypoint_in_lidar_referencial();
 
+    cv::Mat current_lidar_grid;
+
     if(projected_keypoint.size() > 0)
     {   
 
         /* Detect if this Keypoints are blocked by lidar data. */
         bool is_block = detect_path_obstruption(projected_keypoint);
 
-        if(true)
+        if(is_block)
         {
+            std::cout << "[ObstacleBLOCK]\n";
             /* __ If(yes) transform brut lidar data to local grid map with optional resolution. return to visualise debug. */
-            cv::Mat current_lidar_grid = update_local_grid(projected_keypoint);
+            current_lidar_grid = update_local_grid(projected_keypoint);
 
             /* __ If(yes) generate multi destination cell in local grip map. */
             std::vector<Pair> list_destination;
             list_destination = generate_multi_destination(projected_keypoint);
 
-            // std::cout << "taille:" << list_destination.size() << " point(" << list_destination[0].first << "," << list_destination[0].second << ")\n";
-            // cv::circle(current_lidar_grid, cv::Point((int)(list_destination[0].first),(int)(list_destination[0].second)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
-            // cv::resize(current_lidar_grid, current_lidar_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-            // cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-            // cv::imshow("test", current_lidar_grid);
-            // char d=(char)cv::waitKey(25);
-
             /* __ If(yes) run A* on this local grid map. */
             generate_PATKP(list_destination, copy_local_grey_grid);
-
-        //     // REMOVE:
-        //     if(true)
-        //     {   
-        //         for(auto pt : projected_keypoint)
-        //         {
-        //             cv::circle(copy_local_grid, cv::Point((int)(pt.i),(int)(pt.j)),0, cv::Scalar(255,0,0), cv::FILLED, 0, 0);
-        //         }
-        //         cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-        //         cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-        //         cv::imshow("test", copy_local_grid);
-        //         char d=(char)cv::waitKey(25);
-        //     }
             
             return true;
         }
     }
+    is_pt_PATKP = false;
     return false;
 }
 
+// LIDAR POST PROCESS FONCTION.
 void Robot_system::select_PATKP(std::stack<Pair> Path)
 {
     /* DESCRIPTION:
@@ -2425,6 +2410,11 @@ void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
     int index_i = point_lidarRef.first - 400;
     int index_j = 400 - point_lidarRef.second;
 
+    // save for visualisation.
+    pt_PATKP.i = point_lidarRef.first;
+    pt_PATKP.j = point_lidarRef.second;
+    is_pt_PATKP = true;
+
     // division par zeros.
     if(index_i != 0) { angle_PATKP = atan((double)(index_j)/(double)(index_i));} //in rad (-PI to PI)
     else
@@ -2432,16 +2422,13 @@ void Robot_system::transform_lidarRef_to_globalRef(Pair point_lidarRef)
         index_i = 0.01;
         angle_PATKP = atan((double)(index_j)/(double)(index_i));
     }
-    std::cout << "[TRY TEST]=" << angle_PATKP << "\n";
 
-    if(true)
-    {
-        cv::circle(copy_local_grid, cv::Point((int)(point_lidarRef.first/16),(int)(point_lidarRef.second/16)),0, cv::Scalar(0,0,255), cv::FILLED, 0, 0);
-        cv::resize(copy_local_grid, copy_local_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-        cv::namedWindow("test",cv::WINDOW_AUTOSIZE);
-        cv::imshow("test", copy_local_grid);
-        char d=(char)cv::waitKey(25);
-    }
+    // put in motor commande referenciel [-90,0,90] we are currently in [0,-90,90,0]
+    if(angle_PATKP > 0) {angle_PATKP = (M_PI_2 - angle_PATKP);}
+    else {angle_PATKP = (-M_PI_2 - angle_PATKP);}
+
+    std::cout << "angle:" << angle_PATKP << "\n";
+
 }
 
 void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat current_lidar_grid)
@@ -2456,16 +2443,20 @@ void Robot_system::generate_PATKP(std::vector<Pair> list_destination, cv::Mat cu
         Pair source;
         source.first  = 24;
         source.second = 24;
+        cv::circle(current_lidar_grid, cv::Point((int)(24),(int)(24)),0, cv::Scalar(255), cv::FILLED, 0, 0);
 
         Pair destination;
         destination.first  = list_destination[0].first;
         destination.second = list_destination[0].second;
 
-        // secure clean current_lidar_grid.
-            // cv::resize(current_lidar_grid, current_lidar_grid, cv::Size(0,0),16,16,cv::INTER_LINEAR);
-            // cv::namedWindow("teFst",cv::WINDOW_AUTOSIZE);
-            // cv::imshow("teFst", current_lidar_grid);
-        aStarSearch(current_lidar_grid, source, destination, 1);
+        // do the A* stuff.
+        is_pt_PATKP = aStarSearch(current_lidar_grid, source, destination, 1);
+
+        // if A* don't work. Stop the robot for waiting.
+        if(!is_pt_PATKP)
+        {   
+            robot_control.manual_new_command(0, 3, 1);
+        }
     }
 }
 
@@ -2883,7 +2874,7 @@ void Robot_system::compute_motor_autocommandeNico(int option)
     if(abs(leftspeed)<stall_pwm){
         leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
     }
-    std::cout <<  angle_RKP << " " << angle_ORIENTATION << " " << alpha << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
+    // std::cout <<  angle_RKP << " " << angle_ORIENTATION << " " << alpha << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
     // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
 }
@@ -4027,9 +4018,13 @@ void Robot_system::debug_lidar_interface(cv::Mat interface_visuel)
   {
       thickness = -1;
   }
-  cv::rectangle(interface_visuel, robot_sensor_data.lidar.p1, robot_sensor_data.lidar.p2,
+    cv::rectangle(interface_visuel, robot_sensor_data.lidar.p1, robot_sensor_data.lidar.p2,
               cv::Scalar(0, 0, 255),
               thickness, cv::LINE_8);
+
+    if(is_pt_PATKP){
+    cv::circle(interface_visuel, cv::Point((int)(pt_PATKP.i),(int)(pt_PATKP.j)),3, cv::Scalar(255,0,255), cv::FILLED, 0, 0);}
+
 //   wall_detector(list_points, list_line_cluster);
 //   int color_compteur = 0;
 //   std::cout << "[LINE DETECTION]" << "\n";

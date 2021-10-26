@@ -57,6 +57,8 @@ class Robot_system
         cv::Mat local_grey_grid;
         cv::Mat copy_local_grey_grid;
         double angle_PATKP;
+        Point_2D pt_PATKP;
+        bool is_pt_PATKP;
 
         // VARIABLE NAVIGATION.
         // TODO : bien décrire fonctionnement des variable en dessous.
