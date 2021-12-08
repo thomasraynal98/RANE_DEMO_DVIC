@@ -280,10 +280,10 @@ struct Robot_control
 
         origin_commande         = origin;
         manual_commande_message = command;
-        int soustracteur        = -1;
-        if(speed_lvl == 3) { soustracteur = -0;}
-        if(speed_lvl == 2) { soustracteur = -60;}
-        if(speed_lvl == 1) { soustracteur = -150;}
+
+        if(speed_lvl == 3) { speed_lvl = 1.0;}
+        if(speed_lvl == 2) { speed_lvl = 0.5;}
+        if(speed_lvl == 1) { speed_lvl = 0.2;}
 
         /* Change command. */
         if(command == 0)
@@ -312,18 +312,18 @@ struct Robot_control
         if(command == 1)
         {
             // FORWARD.
-            motor.m1L = 255 + soustracteur;
-            direction.m1L_s = 0;
-            motor.m1R = 255 + soustracteur;
-            direction.m1R_s = 0;
-            motor.m2L = 255 + soustracteur;
-            direction.m2L_s = 0;
-            motor.m2R = 255 + soustracteur;
-            direction.m2R_s = 0;
-            motor.m3L = 255 + soustracteur;
-            direction.m3L_s = 0;
-            motor.m3R = 255 + soustracteur;
-            direction.m3R_s = 0;
+            motor.m1L = speed_lvl;
+            direction.m1L_s = 1;
+            motor.m1R = speed_lvl;
+            direction.m1R_s = 1;
+            motor.m2L = speed_lvl;
+            direction.m2L_s = 1;
+            motor.m2R = speed_lvl;
+            direction.m2R_s = 1;
+            motor.m3L = speed_lvl;
+            direction.m3L_s = 1;
+            motor.m3R = speed_lvl;
+            direction.m3R_s = 1;
 
             goForward = true;
             goBackward = false;
@@ -331,18 +331,18 @@ struct Robot_control
         if(command == 2)
         {
             // BACKWARD.
-            motor.m1L = 255 + soustracteur;
-            direction.m1L_s = 1;
-            motor.m1R = 255 + soustracteur;
-            direction.m1R_s = 1;
-            motor.m2L = 255 + soustracteur;
-            direction.m2L_s = 1;
-            motor.m2R = 255 + soustracteur;
-            direction.m2R_s = 1;
-            motor.m3L = 255 + soustracteur;
-            direction.m3L_s = 1;
-            motor.m3R = 255 + soustracteur;
-            direction.m3R_s = 1;
+            motor.m1L = speed_lvl;
+            direction.m1L_s = -1;
+            motor.m1R = speed_lvl;
+            direction.m1R_s = -1;
+            motor.m2L = speed_lvl;
+            direction.m2L_s = -1;
+            motor.m2R = speed_lvl;
+            direction.m2R_s = -1;
+            motor.m3L = speed_lvl;
+            direction.m3L_s = -1;
+            motor.m3R = speed_lvl;
+            direction.m3R_s = -1;
 
             goForward = false;
             goBackward = true;
@@ -350,18 +350,18 @@ struct Robot_control
         if(command == 3)
         {
             // ROTATE LEFT.
-            motor.m1L = 255 + soustracteur;
-            direction.m1L_s = 0;
-            motor.m1R = 255 + soustracteur;
-            direction.m1R_s = 1;
-            motor.m2L = 255 + soustracteur;
-            direction.m2L_s = 0;
-            motor.m2R = 255 + soustracteur;
-            direction.m2R_s = 1;
-            motor.m3L = 255 + soustracteur;
-            direction.m3L_s = 0;
-            motor.m3R = 255 + soustracteur;
-            direction.m3R_s = 1;
+            motor.m1L = speed_lvl;
+            direction.m1L_s = 1;
+            motor.m1R = speed_lvl;
+            direction.m1R_s = -1;
+            motor.m2L = speed_lvl;
+            direction.m2L_s = 1;
+            motor.m2R = speed_lvl;
+            direction.m2R_s = -1;
+            motor.m3L = speed_lvl;
+            direction.m3L_s = 1;
+            motor.m3R = speed_lvl;
+            direction.m3R_s = -1;
 
             goForward = false;
             goBackward = false;
@@ -369,71 +369,21 @@ struct Robot_control
         if(command == 4)
         {
             // ROTATE RIGHT.
-            motor.m1L = 255 + soustracteur;
-            direction.m1L_s = 1;
-            motor.m1R = 255 + soustracteur;
-            direction.m1R_s = 0;
-            motor.m2L = 255 + soustracteur;
-            direction.m2L_s = 1;
-            motor.m2R = 255 + soustracteur;
-            direction.m2R_s = 0;
-            motor.m3L = 255 + soustracteur;
-            direction.m3L_s = 1;
-            motor.m3R = 255 + soustracteur;
-            direction.m3R_s = 0;
+            motor.m1L = speed_lvl;
+            direction.m1L_s = -1;
+            motor.m1R = speed_lvl;
+            direction.m1R_s = 1;
+            motor.m2L = speed_lvl;
+            direction.m2L_s = -1;
+            motor.m2R = speed_lvl;
+            direction.m2R_s = 1;
+            motor.m3L = speed_lvl;
+            direction.m3L_s = -1;
+            motor.m3R = speed_lvl;
+            direction.m3R_s = 1;
 
             goForward = false;
             goBackward = false;
-        }
-        if(command == 5)
-        {
-            // LEFT SMOOTH.
-            motor.m1L = 120 + soustracteur;
-            direction.m1L_s = 0;
-            motor.m1R = 255 + soustracteur;
-            direction.m1R_s = 0;
-            motor.m2L = 120 + soustracteur;
-            direction.m2L_s = 0;
-            motor.m2R = 255 + soustracteur;
-            direction.m2R_s = 0;
-            motor.m3L = 120 + soustracteur;
-            direction.m3L_s = 0;
-            motor.m3R = 255 + soustracteur;
-            direction.m3R_s = 0;
-
-            goForward = true;
-            goBackward = false;
-        }
-        if(command == 6)
-        {
-            // RIGHT SMOOTH.
-            motor.m1L = 255 + soustracteur;
-            direction.m1L_s = 0;
-            motor.m1R = 120 + soustracteur;
-            direction.m1R_s = 0;
-            motor.m2L = 255 + soustracteur;
-            direction.m2L_s = 0;
-            motor.m2R = 120 + soustracteur;
-            direction.m2R_s = 0;
-            motor.m3L = 255 + soustracteur;
-            direction.m3L_s = 0;
-            motor.m3R = 120 + soustracteur;
-            direction.m3R_s = 0;
-
-            goForward = true;
-            goBackward = false;
-        }
-        if(command == 7)
-        {
-            // SERVO TESTING.
-            servo.SL = 255;
-            servo.SR = 100;
-        }
-        if(command == 8)
-        {
-            // SERVO TESTING.
-            servo.SL = 100;
-            servo.SR = 255;
         }
     }
 };
