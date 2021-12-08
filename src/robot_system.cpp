@@ -2268,7 +2268,6 @@ bool Robot_system::isInVect(std::vector<int> vector, int stuf)
 }
 
 // FONCTION MODE.
-
 void Robot_system::manual_mode_process()
 {
     /*
@@ -2837,15 +2836,17 @@ void Robot_system::compute_motor_autocommandeNico(int option)
         angle_ORIENTATION = robot_position.pixel.y_pixel;
         angle_RKP         = compute_vector_RKP(target_keypoint->coordinate);
     }
+
     /* TODO : Reflechir à une maniere to integrate other variable in this calcule, 
     like speed or area type. */
     // TODO: influencer par distance de validation
-    const double V = parametre.paramNavigation.V;// desired velocity, u can make V depend on distance to target to slow down when close
-    const double K = parametre.paramNavigation.K;// turning gain [0.5:1]
-    double F = parametre.paramNavigation.F; // influence of straight line component
-    const int back_angle = parametre.paramNavigation.back_angle; // angle to consider that we are moving backwards in rad
-    const int stall_pwm = parametre.paramNavigation.stall_pwm;
+    const double V        = parametre.paramNavigation.V;// desired velocity, u can make V depend on distance to target to slow down when close
+    const double K        = parametre.paramNavigation.K;// turning gain [0.5:1]
+    double F              = parametre.paramNavigation.F; // influence of straight line component
+    const int back_angle  = parametre.paramNavigation.back_angle; // angle to consider that we are moving backwards in rad
+    const int stall_pwm   = parametre.paramNavigation.stall_pwm;
     const int unstall_pwm = parametre.paramNavigation.unstall_pwm;
+
     /* target_angle variable is good but is it between 0 and 180 degres.
     We don't know if we need to go left or right so we recompute a version on target angle
     between -180 and 180.*/
@@ -2853,27 +2854,32 @@ void Robot_system::compute_motor_autocommandeNico(int option)
 
     if(option == 0)
     {
-        alpha = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
-        alpha += M_PI;
-        alpha = atan2(sin(alpha), cos(alpha)); //[-PI:PI]
+        alpha         = (angle_RKP - angle_ORIENTATION) * M_PI / 180; // difference in rad between robot angle and targetvector angle
+        alpha         += M_PI;
+        alpha         = atan2(sin(alpha), cos(alpha));                //[-PI:PI]
     }
     if(option == 1)
     {
-        alpha = angle_PATKP;
+        alpha         = angle_PATKP;
     }
+
     // we don't have sensors behind so don't move backwards
     // if (abs(alpha)>back_angle){
     //     F = 0;
     // }
-    int rightspeed = (int)(V*(F*cos(alpha)+K*sin(alpha)));
-    int leftspeed = (int)(V*(F*cos(alpha)-K*sin(alpha)));
+    double rightspeed = (double)(V*(F*cos(alpha)+K*sin(alpha)));
+    double leftspeed  = (double)(V*(F*cos(alpha)-K*sin(alpha)));
+
     //make sure the robot will move
-    if(abs(rightspeed)<stall_pwm){
-        rightspeed = unstall_pwm * rightspeed/abs(rightspeed);
+    if(abs(leftspeed) < stall_pwm)
+    {
+        leftspeed     = unstall_pwm * leftspeed/abs(leftspeed);
     }
-    if(abs(leftspeed)<stall_pwm){
-        leftspeed = unstall_pwm * leftspeed/abs(leftspeed);
+    if(abs(rightspeed) < stall_pwm)
+    {
+        rightspeed    = unstall_pwm * rightspeed/abs(rightspeed);
     }
+
     // std::cout <<  angle_RKP << " " << angle_ORIENTATION << " " << alpha << "[LS:" << leftspeed << ", RS:" << rightspeed << "\n";
     // send to robot
     robot_control.manual_new_commandNico(leftspeed,rightspeed);
@@ -2892,7 +2898,6 @@ void Robot_system::secure_command_transmission()
 }
 
 // FONCTION SYSTEM.
-
 void Robot_system::change_mode(std::__cxx11::string& state)
 {
     /*
@@ -2982,7 +2987,7 @@ void Robot_system::print_status()
         "] [POSITION:" << robot_position.position.x << "," << robot_position.position.y << "] \n";
 }
 
-// THREAD ANALYSER DEBUG.
+// THREAD ANALYSER DEBUG. //////////////////////////////////////////////////////////////////////////////
 float Robot_system::round(float var)
 {
     // 37.66666 * 100 =3766.66

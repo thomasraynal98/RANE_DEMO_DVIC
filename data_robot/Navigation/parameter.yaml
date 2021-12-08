@@ -1,8 +1,8 @@
 %YAML:1.0
 ---
 Param_K: 0.45
-Param_V: 200
+Param_V: 0.70
 Param_F: 1
 Param_back_angle: 1.57079632679489661923
-Param_stall_pwm: 100
-Param_unstall_pwm: 100
+Param_stall_pwm: 0.08
+Param_unstall_pwm: 0.08
